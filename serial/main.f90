@@ -18,7 +18,7 @@ program diffusion_serial
     ! modules
     use omp_lib
     use stats,  only: flops_diff, flops_bc, flops_blas1
-    use linalg, only: ss_copy, ss_scale, ss_cg, ss_minmax, ss_axpy, ss_norm2
+    use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
     use data,   only: discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options
     use operators,    only: diffusion
 
