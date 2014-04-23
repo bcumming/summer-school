@@ -1,0 +1,12 @@
+*.mod
+*.o
+*.a
+*.so
+
+# executables
+main
+
+# vim backup files
+*.swp
+*.swo
+*.swn
