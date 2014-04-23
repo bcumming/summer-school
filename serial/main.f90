@@ -10,9 +10,6 @@
 !   ./main nx ny nt
 
 ! define macros
-#define START_TIMER(__hdl__,__t__)  __t__ =  __t__ - omp_get_wtime()
-#define  STOP_TIMER(__hdl__,__t__)  __t__ =  __t__ + omp_get_wtime()
-
 program diffusion_serial
 
     ! modules
