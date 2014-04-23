@@ -89,11 +89,11 @@ program diffusion_serial
     ! no larger than 1/8 of both xdim and ydim
     x_new = 0.0
     xc = 1.0/4.0
-    yc = real(ny-1)*options%dx / 4
+    yc = real(options%global_ny-1)*options%dx / 4
     radius = min(xc,yc)/2.0
-    do j = 1, ny
+    do j = domain%starty, domain%endy
         y = real(j-1)*options%dx
-        do i = 1, nx
+        do i = domain%startx, domain%endx
             x = real(i-1)*options%dx
             if ( (x-xc)**2 + (y-yc)**2 < radius**2) then
                 x_new(i,j) = 0.1
@@ -167,7 +167,7 @@ program diffusion_serial
     ! write final solution to BOV file for visualization
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! binary data
-    if (domain%rank == 0) then
+    if (domain%rank == 2) then
         output=20
         open(unit=output, file='output.bin', status='replace', form='unformatted')
         write(output) x_new
@@ -182,7 +182,7 @@ program diffusion_serial
         write(output,*) 'DATA_ENDIAN: LITTLE'
         write(output,*) 'CENTERING: nodal'
         write(output,*) 'BYTE_OFFSET: 4'
-        write(output,*) 'BRICK_SIZE: 1.0 ', real(ny-1)*options%dx , '1.0'
+        write(output,*) 'BRICK_SIZE: ', real(nx-1)*options%dx  , ' ', real(ny-1)*options%dx , ' 1.0'
         close (output)
 
         ! print table sumarizing results
@@ -296,7 +296,7 @@ subroutine initialize_mpi(options, domain)
     integer     :: mpi_rank, mpi_size
     integer     :: ndomx, ndomy
     integer     :: domx, domy
-    integer     :: nx, ny, startx, starty
+    integer     :: nx, ny, startx, starty, endx, endy
 
     call mpi_init(err)
     call mpi_comm_size(MPI_COMM_WORLD, mpi_size, ierr)
@@ -328,6 +328,14 @@ subroutine initialize_mpi(options, domain)
     if ( domy .eq. ndomy ) then
         ny = options%global_ny - starty + 1
     endif
+
+    endx = startx + nx -1
+    endy = starty + ny -1
+
+    domain%startx = startx
+    domain%starty = starty
+    domain%endx = endx
+    domain%endy = endy
 
     ! store the local grid dimensions back into options
     options%nx = nx

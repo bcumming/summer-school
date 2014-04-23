@@ -27,6 +27,12 @@ type subdomainT
     integer domx
     integer domy
 
+    ! the i and j bounding box of this sub-domain
+    integer startx
+    integer starty
+    integer endx
+    integer endy
+
     ! the rank of neighbouring domains
     integer neighbour_north
     integer neighbour_east

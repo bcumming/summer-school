@@ -1,6 +1,6 @@
 FTN = ftn
 FFLAGS = -O2
-#FFLAGS=-g
+FFLAGS=-g
 #FFLAGS += -e Z # use c-style preprocessing
 
 SOURCES = stats.f90 data.f90 operators.f90 linalg.f90
