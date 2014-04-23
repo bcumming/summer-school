@@ -6,6 +6,10 @@
 # executables
 main
 
+# vis output
+*.bin
+*.bov
+
 # vim backup files
 *.swp
 *.swo
