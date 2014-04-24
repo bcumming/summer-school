@@ -108,7 +108,7 @@ program diffusion_serial
     if (domain%neighbour_east>=0)  bndE = x_new(nx,:)
     if (domain%neighbour_west>=0)  bndW = x_new(1,:)
 
-    ! ****************** serial reference version ******************
+    ! ****************** mpi reference version ******************
     time_in_bcs  = 0.0
     time_in_diff = 0.0
     flops_bc     = 0
