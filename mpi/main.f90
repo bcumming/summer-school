@@ -96,10 +96,17 @@ program diffusion_serial
         do i = domain%startx, domain%endx
             x = real(i-1)*options%dx
             if ( (x-xc)**2 + (y-yc)**2 < radius**2) then
-                x_new(i,j) = 0.1
+                x_new(i-domain%startx+1, j-domain%starty+1) = 0.1
             endif
         enddo
     enddo
+
+    ! pack the boundaries with initial conditions where they are at
+    ! inter-process interfaces
+    if (domain%neighbour_north>=0) bndN = x_new(:,ny)
+    if (domain%neighbour_south>=0) bndS = x_new(:,1)
+    if (domain%neighbour_east>=0)  bndE = x_new(nx,:)
+    if (domain%neighbour_west>=0)  bndW = x_new(1,:)
 
     ! ****************** serial reference version ******************
     time_in_bcs  = 0.0
@@ -167,7 +174,7 @@ program diffusion_serial
     ! write final solution to BOV file for visualization
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! binary data
-    if (domain%rank == 2) then
+    if (domain%rank == domain%size-1) then
         output=20
         open(unit=output, file='output.bin', status='replace', form='unformatted')
         write(output) x_new
@@ -297,6 +304,7 @@ subroutine initialize_mpi(options, domain)
     integer     :: ndomx, ndomy
     integer     :: domx, domy
     integer     :: nx, ny, startx, starty, endx, endy
+    integer     :: i
 
     call mpi_init(err)
     call mpi_comm_size(MPI_COMM_WORLD, mpi_size, ierr)
@@ -378,12 +386,17 @@ subroutine initialize_mpi(options, domain)
     domain%domx = domx
     domain%domy = domy
 
-    write (*,*) 'dom-deco rank ', mpi_rank, '/', mpi_size, &
-                '(', domx, ',', domy, ') ', &
-                '/(', ndomx, ',', ndomy, ') ', &
-                ' neigh N-S ', domain%neighbour_north, domain%neighbour_south, &
-                ' neigh E-W ', domain%neighbour_east, domain%neighbour_west, &
-                ' local dims ', nx, ',' , ny
+    do i=0,mpi_size-1
+        if( mpi_rank == i ) then
+            write (*,'(A,I2,A,I2,A,I2,A,I2,A,A,I2,A,I2,A,A,I3,I3,A,I3,I3,A,I5,A,I5)') 'rank ', mpi_rank, ' /', mpi_size, &
+                        ' : (', domx, ',', domy, ' )', &
+                        '/(', ndomx, ',', ndomy, ') ', &
+                        ' neigh N-S ', domain%neighbour_north, domain%neighbour_south, &
+                        ' neigh E-W ', domain%neighbour_east, domain%neighbour_west, &
+                        ' local dims ', nx, '  x' , ny
+        end if
+        call mpi_barrier(MPI_COMM_WORLD, ierr);
+    end do
 end
 
 !==============================================================================

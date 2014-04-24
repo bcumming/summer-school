@@ -259,7 +259,6 @@ subroutine ss_cg(x, b, maxiters, tol, success)
     N = options%N
 
     if (.NOT. cg_initialized) then
-        write(*,*) 'INITIALIZING CG STATE'
         call cg_init(N)
     endif
 

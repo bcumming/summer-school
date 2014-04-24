@@ -93,7 +93,7 @@ subroutine diffusion(u, s)
             MPI_COMM_WORLD, requests(num_requests+1), err)
         ! pack north buffer
         do j = 1, ny
-            buffE(j) = u(1,j)
+            buffW(j) = u(1,j)
         enddo
         ! post send
         call mpi_isend(buffW, ny, MPI_DOUBLE, domain%neighbour_west, domain%rank, &
