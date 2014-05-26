@@ -3,7 +3,7 @@
 
 module linalg
 
-use stats,     only: flops_blas1
+use stats,     only: flops_blas1, iters_cg
 use data,      only: discretizationT, options, bndN, bndE, bndS, bndS
 use operators, only: diffusion
 
@@ -20,14 +20,12 @@ contains
 ! on the device for the OpenACC implementation (feel free to suggest a better
 ! method for doing this)
 subroutine cg_init(N)
-! arguments
-integer,    intent(in)  :: N
+    ! arguments
+    integer,    intent(in)  :: N
 
-allocate(Ap(N), r(N), p(N), Fx(N), Fxold(N), v(N), xold(N))
-cg_initialized = .true.
-
+    allocate(Ap(N), r(N), p(N), Fx(N), Fxold(N), v(N), xold(N))
+    cg_initialized = .true.
 end
-
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   blas level 1 reductions
@@ -254,7 +252,6 @@ subroutine ss_cg(x, b, maxiters, tol, success)
     N = options%N
 
     if (.NOT. cg_initialized) then
-        write(*,*) 'INITIALIZING CG STATE'
         call cg_init(N)
     endif
 
@@ -331,6 +328,8 @@ subroutine ss_cg(x, b, maxiters, tol, success)
 
         rold = rnew
     enddo
+
+    iters_cg = iters_cg + iter
 
     if (.NOT. success) then
         write(*,*) 'ERROR: CG failed to converge after ', maxiters, ' iterations'

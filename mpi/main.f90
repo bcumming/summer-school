@@ -14,7 +14,7 @@ program diffusion_serial
     ! modules
     use mpi
     use omp_lib
-    use stats,  only: flops_diff, flops_bc, flops_blas1
+    use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
     use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain
     use operators,    only: diffusion
@@ -115,6 +115,8 @@ program diffusion_serial
     flops_bc     = 0
     flops_diff   = 0
     flops_blas1  = 0
+    iters_cg     = 0
+    iters_newton = 0
 
     ! start timer
     timespent = -omp_get_wtime();
@@ -149,6 +151,7 @@ program diffusion_serial
             ! update solution
             call ss_axpy(x_new, -one, deltax, N)
         end do
+        iters_newton = iters_newton + it
 
         ! output some statistics
         if (domain%rank==0) then
@@ -197,8 +200,8 @@ program diffusion_serial
         ! print table sumarizing results
         write(*,'(A)') '--------------------------------------------------------------------------------'
         write(*,*) 'simulation took ', timespent , ' seconds'
-        write(*,*) '                ', flops_total , ' floating point operations'
-        write(*,*) '                ', real(flops_total)/timespent/(1e9) , ' GFLOPs'
+        write(*,*) iters_cg , ' conjugate gradient iterations', iters_cg/timespent, ' per second'
+        write(*,*) iters_newton , ' nonlinear newton iterations'
         write(*,'(A)') '-------------------------------------------------------------------------------'
     end if
 
@@ -207,8 +210,6 @@ program diffusion_serial
     ! deallocate global fields
     deallocate(x_new, x_old)
     deallocate(bndN, bndS, bndE, bndW)
-
-    if (domain%rank == 0) write(*,'(a)') 'Goodbye!'
 
     call mpi_finalize(err)
 
@@ -251,6 +252,7 @@ subroutine readcmdline(options)
             write(*,*) '  ny  number of gridpoints in y-direction'
             write(*,*) '  nt  number of timesteps'
             write(*,*) '  t   total time'
+            write(*,*) '  verbose   (optional) if set verbose output is enabled'
         endif
         stop
     end if
@@ -397,7 +399,7 @@ subroutine initialize_mpi(options, domain)
     domain%domy = domy
 
     do i=0,mpi_size-1
-        if( mpi_rank == i ) then
+        if( mpi_rank == i .and. verbose_output ) then
             write (*,'(A,I2,A,I2,A,I2,A,I2,A,A,I2,A,I2,A,A,I3,I3,A,I3,I3,A,I5,A,I5)') 'rank ', mpi_rank, ' /', mpi_size, &
                         ' : (', domx, ',', domy, ' )', &
                         '/(', ndomx, ',', ndomy, ') ', &

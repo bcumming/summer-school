@@ -3,7 +3,7 @@
 
 module linalg
 
-use stats,     only: flops_blas1
+use stats,     only: flops_blas1, iters_cg
 use data,      only: discretizationT, options, bndN, bndE, bndS, bndS
 use operators, only: diffusion
 
@@ -344,6 +344,7 @@ subroutine ss_cg(x, b, maxiters, tol, success)
 
         rold = rnew
     enddo
+    iters_cg = iters_cg + iter
 
     if (.NOT. success) then
         write(*,*) 'ERROR: CG failed to converge after ', maxiters, ' iterations'

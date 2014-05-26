@@ -14,7 +14,7 @@ program diffusion_serial
 
     ! modules
     use omp_lib
-    use stats,  only: flops_diff, flops_bc, flops_blas1
+    use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
     use data,   only: discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options
     use operators,    only: diffusion
@@ -103,6 +103,8 @@ program diffusion_serial
     flops_bc     = 0
     flops_diff   = 0
     flops_blas1  = 0
+    iters_cg     = 0
+    iters_newton = 0
 
     ! start timer
     timespent = -omp_get_wtime();
@@ -137,6 +139,7 @@ program diffusion_serial
             ! update solution
             call ss_axpy(x_new, -one, deltax, N)
         end do
+        iters_newton = iters_newton+it
 
         ! output some statistics
         if (converged .and. verbose_output) then
@@ -179,8 +182,8 @@ program diffusion_serial
     ! print table sumarizing results
     write(*,'(A)') '--------------------------------------------------------------------------------'
     write(*,*) 'simulation took ', timespent , ' seconds'
-    write(*,*) '                ', flops_total , ' floating point operations'
-    write(*,*) '                ', real(flops_total)/timespent/(1e9) , ' GFLOPs'
+    write(*,*) '                ', iters_cg , ' conjugate gradient iterations', iters_cg/timespent, ' per second'
+    write(*,*) '                ', iters_newton , ' nonlinear newton iterations'
     write(*,'(A)') '-------------------------------------------------------------------------------'
 
     ! ****************** cleanup ******************

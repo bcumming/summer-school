@@ -14,7 +14,7 @@ program diffusion_serial
 
     ! modules
     use omp_lib
-    use stats,  only: flops_diff, flops_bc, flops_blas1
+    use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
     use data,   only: discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options
     use operators,    only: diffusion
@@ -39,6 +39,7 @@ program diffusion_serial
     integer :: output
 
     logical :: converged, cg_converged
+    logical :: verbose_output
 
     ! ****************** read command line arguments ******************
 
@@ -101,6 +102,8 @@ program diffusion_serial
     flops_bc     = 0
     flops_diff   = 0
     flops_blas1  = 0
+    iters_cg     = 0
+    iters_newton = 0
 
     ! start timer
     timespent = -omp_get_wtime();
@@ -135,13 +138,15 @@ program diffusion_serial
             ! update solution
             call ss_axpy(x_new, -one, deltax, N)
         end do
+        iters_newton = iters_newton+it
 
         ! output some statistics
-        if (converged) then
+        if (converged .and. verbose_output) then
             write(*,*) 'step ', timestep, &
                        ' required ', it,  &
                        ' iterations for residual', residual
-        else
+        endif
+        if( .not. converged ) then
             write(*,*) 'step ', timestep, &
                        ' ERROR : nonlinear iterations failed to converge'
             exit
@@ -176,8 +181,8 @@ program diffusion_serial
     ! print table sumarizing results
     write(*,'(A)') '--------------------------------------------------------------------------------'
     write(*,*) 'simulation took ', timespent , ' seconds'
-    write(*,*) '                ', flops_total , ' floating point operations'
-    write(*,*) '                ', real(flops_total)/timespent/(1e9) , ' GFLOPs'
+    write(*,*) '                ', iters_cg , ' conjugate gradient iterations', iters_cg/timespent, ' per second'
+    write(*,*) '                ', iters_newton , ' nonlinear newton iterations'
     write(*,'(A)') '-------------------------------------------------------------------------------'
 
     ! ****************** cleanup ******************
@@ -216,15 +221,18 @@ subroutine readcmdline(options)
     ! local
     character(len=256) :: sarg
     integer :: nx, ny, nz, nt
+    integer :: nargs
     real (kind=8) :: t
 
-    if (command_argument_count() /= 4) then
-    write(*,*) 'Usage: main nx ny nz nt'
-    write(*,*) '  nx  number of gridpoints in x-direction'
-    write(*,*) '  ny  number of gridpoints in y-direction'
-    write(*,*) '  nt  number of timesteps'
-    write(*,*) '  t   total time'
-    stop
+    nargs = command_argument_count()
+    if ( nargs<4 .or. nargs>5) then
+        write(*,*) 'Usage: main nx ny nz nt'
+        write(*,*) '  nx  number of gridpoints in x-direction'
+        write(*,*) '  ny  number of gridpoints in y-direction'
+        write(*,*) '  nt  number of timesteps'
+        write(*,*) '  t   total time'
+        write(*,*) '  verbose   (optional) if set verbose output is enabled'
+        stop
     end if
 
     ! read nx
@@ -250,6 +258,13 @@ subroutine readcmdline(options)
     t = -1.
     read(sarg,*) t
     call error(t<0, 't must be positive real value')
+
+    ! set verbose output if a fith argument has been passed
+    if ( nargs == 5) then
+        verbose_output = .true.
+    else
+        verbose_output = .false.
+    end if
 
     ! store the parameters
     options%nx = nx
