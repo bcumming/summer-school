@@ -40,6 +40,7 @@ program diffusion_serial
     integer :: err
 
     logical :: converged, cg_converged
+    logical :: verbose_output
 
     ! ****************** read command line arguments ******************
 
@@ -238,9 +239,11 @@ subroutine readcmdline(options)
     ! local
     character(len=256) :: sarg
     integer :: nx, ny, nz, nt
+    integer :: nargs
     real (kind=8) :: t
 
-    if (command_argument_count() /= 4) then
+    nargs = command_argument_count()
+    if ( nargs < 4 .or. nargs > 5) then
         if(domain%rank == 0) then
             write(*,*) 'Usage: main nx ny nz nt'
             write(*,*) '  nx  number of gridpoints in x-direction'
@@ -274,6 +277,12 @@ subroutine readcmdline(options)
     t = -1.
     read(sarg,*) t
     call error(t<0, 't must be positive real value')
+
+    if ( nargs == 5) then
+        verbose_output = .true.
+    else
+        verbose_output = .false.
+    end if
 
     ! store the parameters
     options%global_nx = nx
