@@ -7,7 +7,7 @@
 ! finite differences.
 
 ! Syntax:
-!   ./main nx ny nt
+!   ./main nx ny nt t
 
 ! define macros
 program diffusion_serial
@@ -39,6 +39,8 @@ program diffusion_serial
     integer :: output
 
     logical :: converged, cg_converged
+
+    logical :: verbose_output
 
     ! ****************** read command line arguments ******************
 
@@ -137,11 +139,12 @@ program diffusion_serial
         end do
 
         ! output some statistics
-        if (converged) then
+        if (converged .and. verbose_output) then
             write(*,*) 'step ', timestep, &
                        ' required ', it,  &
                        ' iterations for residual', residual
-        else
+        endif
+        if (.not. converged) then
             write(*,*) 'step ', timestep, &
                        ' ERROR : nonlinear iterations failed to converge'
             exit
@@ -216,15 +219,18 @@ subroutine readcmdline(options)
     ! local
     character(len=256) :: sarg
     integer :: nx, ny, nz, nt
+    integer :: nargs
     real (kind=8) :: t
 
-    if (command_argument_count() /= 4) then
-    write(*,*) 'Usage: main nx ny nz nt'
-    write(*,*) '  nx  number of gridpoints in x-direction'
-    write(*,*) '  ny  number of gridpoints in y-direction'
-    write(*,*) '  nt  number of timesteps'
-    write(*,*) '  t   total time'
-    stop
+    nargs = command_argument_count()
+    if ( nargs < 4 .or. nargs > 5) then
+        write(*,*) 'Usage: main nx ny nz nt verbose'
+        write(*,*) '  nx        number of gridpoints in x-direction'
+        write(*,*) '  ny        number of gridpoints in y-direction'
+        write(*,*) '  nt        number of timesteps'
+        write(*,*) '  t         total time'
+        write(*,*) '  verbose   (optional) if set verbose output is enabled'
+        stop
     end if
 
     ! read nx
@@ -250,6 +256,12 @@ subroutine readcmdline(options)
     t = -1.
     read(sarg,*) t
     call error(t<0, 't must be positive real value')
+
+    if ( nargs == 5) then
+        verbose_output = .true.
+    else
+        verbose_output = .false.
+    end if
 
     ! store the parameters
     options%nx = nx
