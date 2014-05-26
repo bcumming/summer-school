@@ -152,12 +152,13 @@ program diffusion_serial
 
         ! output some statistics
         if (domain%rank==0) then
-            if (converged) then
+            if (converged .and. verbose_output) then
                 write(*,*) 'step ', timestep, &
                         ' required ', it,  &
                         ' iterations for residual', residual
-            else
-                write(*,*) 'step ', timestep, &
+            endif
+            if (.not. converged) then
+                write(*,*) '!!!!!!!!!!!!!!!! step ', timestep, &
                         ' ERROR : nonlinear iterations failed to converge'
             endif
         endif

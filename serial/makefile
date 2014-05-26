@@ -9,8 +9,17 @@ OBJ     = stats.o   data.o   operators.o   linalg.o
 
 all: main
 
-.f90.o: $<
-	$(FTN) $(FFLAGS) $(IFLAGS) -c $< -o $@
+stats.o: stats.f90
+	$(FTN) $(FFLAGS) $(IFLAGS) -c stats.f90 -o stats.o
+
+data.o: data.f90
+	$(FTN) $(FFLAGS) $(IFLAGS) -c data.f90 -o data.o
+
+operators.o: operators.f90
+	$(FTN) $(FFLAGS) $(IFLAGS) -c operators.f90 -o operators.o
+
+linalg.o: linalg.f90
+	$(FTN) $(FFLAGS) $(IFLAGS) -c linalg.f90 -o linalg.o
 
 main: $(OBJ) main.f90
 	$(FTN) $(FFLAGS) *.o main.f90  -o $@

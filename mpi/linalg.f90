@@ -337,7 +337,7 @@ subroutine ss_cg(x, b, maxiters, tol, success)
     enddo
 
     if (.NOT. success) then
-        write(*,*) 'ERROR: CG failed to converge after ', maxiters, ' iterations'
+        !write(*,*) 'ERROR: CG failed to converge after ', maxiters, ' iterations'
     endif
 end
 
