@@ -1,5 +1,6 @@
 CXX = g++
 CXXFLAGS = -O3 -mtune=native -ffast-math -g -fopenmp
+CXXFLAGS = -O2 -fopenmp
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
 HEADERS = stats.h   data.h   operators.h   linalg.h
@@ -9,11 +10,20 @@ OBJ     = stats.o   data.o   operators.o   linalg.o
 
 all: main
 
-.cpp.o: $< $(HEADERS)
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c $< -o $@
+stats.o: stats.cpp stats.h
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c stats.cpp -o stats.o
+
+data.o: data.cpp data.h
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c data.cpp -o data.o
+
+operators.o: operators.cpp operators.h
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c operators.cpp -o operators.o
+
+linalg.o: linalg.cpp linalg.h
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c linalg.cpp -o linalg.o
 
 main: $(OBJ) main.cpp $(HEADERS)
-	$(CXX) $(CXXFLAGS) *.o main.cpp  -o $@
+	$(CXX) $(CXXFLAGS) *.o main.cpp -o main
 
 clean:
 	rm -f main

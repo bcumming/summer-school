@@ -14,129 +14,124 @@ using namespace operators;
 
 void operators::diffusion(const double* up, double* sp)
 {
-	data::discretization_t& options = data::options;
-	
-	double (*u)[options.nx] = (double(*)[options.nx])up;
-	double (*s)[options.nx] = (double(*)[options.nx])sp;
+    data::discretization_t& options = data::options;
 
-	double (*x_old)[options.nx] = (double(*)[options.nx])data::x_old;
-	double *bndE = data::bndE, *bndW = data::bndW;
-	double *bndN = data::bndN, *bndS = data::bndS;
+    double (*u)[options.nx] = (double(*)[options.nx])up;
+    double (*s)[options.nx] = (double(*)[options.nx])sp;
 
-	double dxs = 1000. * (options.dx * options.dx);
-	double alpha = options.alpha;
-	int iend  = options.nx - 1;
-	int jend  = options.ny - 1;
+    double (*x_old)[options.nx] = (double(*)[options.nx])data::x_old;
+    double *bndE = data::bndE, *bndW = data::bndW;
+    double *bndN = data::bndN, *bndS = data::bndS;
 
-	// the interior grid points
-	for (int j = 1; j < jend; j++)
-		for (int i = 1; i < iend; i++)
-		{
-			s[j][i] = -(4. + alpha) * u[j][i]               // central point
-			                        + u[j][i-1] + u[j][i+1] // east and west
-			                        + u[j-1][i] + u[j+1][i] // north and south
+    double dxs = 1000. * (options.dx * options.dx);
+    double alpha = options.alpha;
+    int iend  = options.nx - 1;
+    int jend  = options.ny - 1;
 
-			                        + alpha * x_old[j][i]
-			                        + dxs * u[j][i] * (1.0 - u[j][i]);
+    // the interior grid points
+    for (int j = 1; j < jend; j++)
+        for (int i = 1; i < iend; i++)
+        {
+            s[j][i] = -(4. + alpha) * u[j][i]               // central point
+                                    + u[j][i-1] + u[j][i+1] // east and west
+                                    + u[j-1][i] + u[j+1][i] // north and south
+
+                                    + alpha * x_old[j][i]
+                                    + dxs * u[j][i] * (1.0 - u[j][i]);
                 }
 
-	// the east boundary
-	{
-		int i = options.nx - 1;
-		for (int j = 1; j < jend; j++)
-		{
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i-1] + u[j-1][i] + u[j+1][i]
-						
-						+ alpha*x_old[j][i] + bndE[j]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
-	}
-	
-	// the west boundary
-	{
-		int i = 0;
-		for (int j = 1; j < jend; j++)
-		{
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i+1] + u[j-1][i] + u[j+1][i]
-						
-						+ alpha * x_old[j][i] + bndW[j]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
-	}
+    // the east boundary
+    {
+        int i = options.nx - 1;
+        for (int j = 1; j < jend; j++)
+        {
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i-1] + u[j-1][i] + u[j+1][i]
 
-	// the north boundary (plus NE and NW corners)
-	{
-		int j = options.ny - 1;
-		
-		{
-			int i = 0; // NW corner
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i+1] + u[j-1][i]
-						
-						+ alpha * x_old[j][i] + bndW[j] + bndN[i]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
+                        + alpha*x_old[j][i] + bndE[j]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+    }
 
-		// north boundary
-		for (int i = 1; i < iend; i++)
-		{
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i-1] + u[j][i+1] + u[j-1][i]
-						
-						+ alpha*x_old[j][i] + bndN[i]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
+    // the west boundary
+    {
+        int i = 0;
+        for (int j = 1; j < jend; j++)
+        {
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i+1] + u[j-1][i] + u[j+1][i]
 
-		{
-			int i = options.nx; // NE corner
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i-1] + u[j-1][i]
-						
-						+ alpha * x_old[j][i] + bndE[j] + bndN[i]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
-	}
+                        + alpha * x_old[j][i] + bndW[j]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+    }
 
-	// the south boundary
-	{
-		int j = 0;
-		
-		{
-			int i = 0; // SW corner
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i+1] + u[j+1][i]
-						
-						+ alpha * x_old[j][i] + bndW[j] + bndS[i]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
+    // the north boundary (plus NE and NW corners)
+    {
+        int j = options.ny - 1;
 
-		// south boundary
-		for (int i = 1; i < iend; i++)
-		{
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i-1] + u[j][i+1] + u[j+1][i]
-						
-						+ alpha * x_old[j][i] + bndS[i]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
-		
-		{
-			int i = options.nx - 1; // SE corner
-			s[j][i] = -(4. + alpha) * u[j][i]
-						+ u[j][i-1] + u[j+1][i]
-						
-						+ alpha * x_old[j][i] + bndE[j] + bndS[i]
-						+ dxs * u[j][i] * (1.0 - u[j][i]);
-		}
-	}
+        {
+            int i = 0; // NW corner
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i+1] + u[j-1][i]
 
-	// Accumulate the flop counts
-	// 8 ops total per point
-	stats::flops_diff +=
-		+ 12 * (options.nx - 2) * (options.ny - 2) // interior points
-		+ 11 * (options.nx - 2  +  options.ny - 2) // NESW boundary points
-		+ 11 * 4;                                  // corner points
+                        + alpha * x_old[j][i] + bndW[j] + bndN[i]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+
+        // north boundary
+        for (int i = 1; i < iend; i++)
+        {
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i-1] + u[j][i+1] + u[j-1][i]
+                        + alpha*x_old[j][i] + bndN[i]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+
+        {
+            int i = options.nx; // NE corner
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i-1] + u[j-1][i]
+                        + alpha * x_old[j][i] + bndE[j] + bndN[i]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+    }
+
+    // the south boundary
+    {
+        int j = 0;
+
+        {
+            int i = 0; // SW corner
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i+1] + u[j+1][i]
+                        + alpha * x_old[j][i] + bndW[j] + bndS[i]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+
+        // south boundary
+        for (int i = 1; i < iend; i++)
+        {
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i-1] + u[j][i+1] + u[j+1][i]
+                        + alpha * x_old[j][i] + bndS[i]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+
+        {
+            int i = options.nx - 1; // SE corner
+            s[j][i] = -(4. + alpha) * u[j][i]
+                        + u[j][i-1] + u[j+1][i]
+                        + alpha * x_old[j][i] + bndE[j] + bndS[i]
+                        + dxs * u[j][i] * (1.0 - u[j][i]);
+        }
+    }
+
+    // Accumulate the flop counts
+    // 8 ops total per point
+    stats::flops_diff +=
+        + 12 * (options.nx - 2) * (options.ny - 2) // interior points
+        + 11 * (options.nx - 2  +  options.ny - 2) // NESW boundary points
+        + 11 * 4;                                  // corner points
 }
 

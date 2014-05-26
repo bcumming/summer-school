@@ -11,7 +11,7 @@
 
 namespace operators
 {
-	void diffusion(const double* up, double* sp);
+    void diffusion(const double* up, double* sp);
 }
 
 #endif // OPERATORS_H
