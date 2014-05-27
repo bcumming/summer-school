@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
 
     // metadata
     {
-        FILE* output = fopen("output.bov", "w");
+        FILE* output = fopen("output.bov", "wb");
         fprintf(output, "TIME: 0.0\n");
         fprintf(output, "DATA_FILE: output.bin\n");
         fprintf(output, "DATA_SIZE: %d, %d, 1\n", nx, ny);
@@ -221,7 +221,7 @@ int main(int argc, char* argv[])
         fprintf(output, "VARIABLE: phi\n");
         fprintf(output, "DATA_ENDIAN: LITTLE\n");
         fprintf(output, "CENTERING: nodal\n");
-        fprintf(output, "BYTE_OFFSET: 4\n");
+        //fprintf(output, "BYTE_OFFSET: 4\n");
         fprintf(output, "BRICK_SIZE: 1.0 %f 1.0\n", (ny - 1) * options.dx);
         fclose(output);
     }
