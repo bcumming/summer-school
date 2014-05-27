@@ -312,10 +312,11 @@ subroutine ss_cg(x, b, maxiters, tol, success)
     success = .false.
     if( dsqrt(rold)<tol ) then
         success = .true.
-        return
     endif
 
-    do iter=1, maxiters
+    iter=0
+    do while(iter<maxiters .and. .not. success)
+        iter=iter+1
         !Ap = A*p
         call ss_lcomb(v, one, xold, eps, p, N)
         call diffusion(v, Fx)
@@ -336,17 +337,16 @@ subroutine ss_cg(x, b, maxiters, tol, success)
         ! test for convergence
         if( dsqrt(rnew)<tol ) then
             success = .true.
-            exit
         endif
 
         ! p = r + rnew.rold * p
         call ss_lcomb(p, one, r, rnew/rold, p, N)
 
         rold = rnew
-    enddo
+    end do
     iters_cg = iters_cg + iter
 
-    if (.NOT. success) then
+    if (.not. success) then
         write(*,*) 'ERROR: CG failed to converge after ', maxiters, ' iterations'
     endif
 end
