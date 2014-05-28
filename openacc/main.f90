@@ -16,7 +16,7 @@ program diffusion_serial
     use omp_lib
     use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2, cg_init, r, Ap, p, Fx, Fxold, v, xold
-    use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain
+    use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain, buffN, buffW, buffE, buffS
     use operators,    only: diffusion
 
     implicit none
@@ -77,6 +77,9 @@ program diffusion_serial
     call error(ierr /= 0, 'Problem allocating memory')
     allocate(bndE(ny), bndW(ny), stat=ierr)
     call error(ierr /= 0, 'Problem allocating memory')
+
+    ! allocate buffers for MPI
+    allocate(buffN(nx), buffS(nx), buffE(ny), buffW(ny))
 
     call cg_init(N)
 
@@ -140,14 +143,7 @@ program diffusion_serial
     converged = .true.
 
     timestep = 1;
-    !$acc data copy(x_old, x_new, deltax, Ap, p, r, b, v, Fx, Fxold, x, xold, bndN, bndE, bndS, bndW, options)
-
-    !!$acc parallel
-    !!$acc loop
-    !do i=1,N
-        !Ap(i) = 0.;
-    !end do
-    !!$acc end parallel
+    !$acc data copy(x_old, x_new, deltax, Ap, p, r, b, v, Fx, Fxold, x, xold, bndN, bndE, bndS, bndW, options, buffN, buffE, buffW, buffS)
     !$acc wait
 
     ! start timer
@@ -212,7 +208,8 @@ program diffusion_serial
     ! write final solution to BOV file for visualization
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! binary data
-    if (domain%rank == domain%size-1) then
+    !if (domain%rank == domain%size-1) then
+    if (domain%rank == 0) then
         output=20
         open(unit=output, file='output.bin', status='replace', form='unformatted')
         write(output) x_new

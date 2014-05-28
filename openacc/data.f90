@@ -54,6 +54,8 @@ end type
 ! fields that hold the solution
 real (kind=8), allocatable :: x_new(:,:), x_old(:,:)
 real (kind=8), allocatable :: bndN(:), bndE(:), bndS(:), bndW(:)
+real (kind=8), allocatable :: buffN(:), buffS(:), buffE(:), buffW(:)
+
 type(discretizationT) :: options
 type(subdomainT)      :: domain
 

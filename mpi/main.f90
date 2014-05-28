@@ -179,7 +179,8 @@ program diffusion_serial
     ! write final solution to BOV file for visualization
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! binary data
-    if (domain%rank == domain%size-1) then
+    !if (domain%rank == domain%size-1) then
+    if (domain%rank == 0) then
         output=20
         open(unit=output, file='output.bin', status='replace', form='unformatted')
         write(output) x_new

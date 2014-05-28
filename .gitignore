@@ -5,6 +5,7 @@
 
 # executables
 main
+main_mpi
 
 # vis output
 *.bin
@@ -14,3 +15,12 @@ main
 *.swp
 *.swo
 *.swn
+
+# cray compiler diagnostics
+*.cub
+*.ptx
+*.cg
+*.lst
+*.opt
+
+tmp
