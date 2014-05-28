@@ -1,4 +1,20 @@
-## Finite-difference solver for non-linear 2D diffusion-reaction problem
+# A Mini App for Teaching Basic HPC
+
+This is a simple application that solves a simple reaction diffusion equation in 2D, which uses some common computational kernels that can be used to teach basic HPC programming methods.
+
+The equation is Fisher's equation, a simple nonlinear reaction diffusion equation that is used to model simple population dynamics.
+
+<img src="http://www.sciweavers.org/tex2img.php?eq=%5Cfrac%7B%5Cpartial%5E2u%7D%7B%5Cpartial%20t%5E2%7D%3DD%5Cfrac%7B%5Cpartial%5E2u%7D%7B%5Cpartial%20x%5E2%7D%20%2B%20Ru%281-u%29%20&bc=White&fc=Black&im=gif&fs=12&ff=arev&edit=0" align="center" border="0" alt="\frac{\partial^2u}{\partial t^2}=D\frac{\partial^2u}{\partial x^2} + Ru(1-u) " width="200" height="46" />
+
+Where the diffusion parameter _D_ and the growth rate _R_ have been hard coded in this case to give stable and interesting results.
+
+####begin numerics mumbo-jumbo for those who are interested
+The spatial discretization is simple finite differences, with a 5-point Laplacian for the spatial derivative (the spatial discretization has constant grid spacing which makes the 5-point Laplacian second order). An implicit temporal discretization is employed, which requires the solution of a non-linear system of equations at each time step. Newton-Raphson iteration is used to solve the nonlinear system, with conjugate gradient (CG) method used to solve the linear systems.
+
+The conjugate gradient method does not directly use the Jacobian matrix, instead it computes the matrix-vector product with the Jacobian. It is not necessary to compute the Jacobian, because this product may be approximated using a finite difference approximation that requires the computation of the stencil operator.
+####end numerics mumbo-jumbo
+
+The implicit time stepping scheme and matrix-free conjugate gradient method were chosen because they use more simple kernels that can be used as parallelization examples than simple explicit time stepping. A set of level-1 BLAS routines are required, including saxpy (simple for_all parallel) and dot product (a parallel reduction operation), as well as the stencil operator. A simple boundary echange must be performed before the stencil operatior is applied to nodes on the boundary of a sub domain.
 
 ### How to build
 
