@@ -1,6 +1,7 @@
 FTN = ftn
 
 FFLAGS = -rmd -hacc -O3
+FFLAGS += -e Z # use c-style preprocessing
 
 SOURCES = stats.f90 data.f90 operators.f90 linalg.f90
 OBJ     = stats.o   data.o   operators.o   linalg.o
@@ -20,7 +21,8 @@ operators.o: operators.f90
 	$(FTN) $(FFLAGS) $(IFLAGS) -c operators.f90 -o operators.o
 
 operators_mpi.o: operators_mpi.f90
-	$(FTN) $(FFLAGS) $(IFLAGS) -c operators_mpi.f90 -o operators_mpi.o
+	$(FTN) $(FFLAGS) $(IFLAGS) -c operators_mpi.f90 -o operators_mpi.o -DUSE_G2G
+#	$(FTN) $(FFLAGS) $(IFLAGS) -c operators_mpi.f90 -o operators_mpi.o
 
 linalg.o: linalg.f90
 	$(FTN) $(FFLAGS) $(IFLAGS) -c linalg.f90 -o linalg.o

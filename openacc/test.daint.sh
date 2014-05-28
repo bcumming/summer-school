@@ -1,4 +1,5 @@
 export MPICH_RDMA_ENABLED_CUDA=1
+#unset MPICH_RDMA_ENABLED_CUDA
 
 dim=512
 nprocx=1
@@ -22,7 +23,6 @@ do
     fi
 done
 
-nt=400
 dim=1024
 nt=100
 echo "============================================="

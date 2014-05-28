@@ -38,9 +38,7 @@ subroutine diffusion(u, s)
     nx  = options%nx
     ny  = options%ny
 
-    !!$acc parallel present(s, u, x_old, bndE, bndW, bndN, bndS, options) create(buffN, buffS, buffE, buffW)
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!$acc data present(u) create(buffN, buffS, buffE, buffW)
     !$acc data present(u, buffN, buffS, buffE, buffW)
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -63,8 +61,11 @@ subroutine diffusion(u, s)
     end do
     !$acc end parallel
 
-    !!$acc update host(buffN, buffE, buffS, buffW)
+#ifdef USE_G2G
     !$acc host_data use_device(bndN, buffN, bndS, buffS, bndE, buffE, bndW, buffW)
+#else
+    !$acc update host(buffN, buffE, buffS, buffW)
+#endif
     num_requests = 0
     if (domain%neighbour_north>=0) then
         call mpi_irecv(bndN, nx, MPI_DOUBLE, domain%neighbour_north, domain%neighbour_north, &
@@ -99,9 +100,13 @@ subroutine diffusion(u, s)
 
         num_requests = num_requests + 2
     endif
+#ifdef USE_G2G
     !$acc end host_data
+#endif
     call mpi_waitall(num_requests, requests, stats, err)
-    !!$acc update device (bndE, bndW, bndS, bndN)
+#ifndef USE_G2G
+    !$acc update device (bndE, bndW, bndS, bndN)
+#endif
 
     !$acc parallel 
     ! the interior grid points
