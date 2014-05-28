@@ -14,6 +14,7 @@ program diffusion_serial
     ! modules
     use mpi
     use omp_lib
+    use io,     only: write_parallel
     use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
     use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain, buffN, buffS, buffE, buffW
@@ -185,20 +186,20 @@ program diffusion_serial
     !if (domain%rank == domain%size-1) then
     if (domain%rank == 0) then
         output=20
-        open(unit=output, file='output.bin', status='replace', form='unformatted')
-        write(output) x_new
-        close(output)
+        !open(unit=output, file='output.bin', status='replace', form='unformatted')
+        !write(output) x_new
+        !close(output)
         ! metadata
         open (unit=output, file='output.bov', status='replace')
         write(output,*) 'TIME: 0.0'
         write(output,*) 'DATA_FILE: output.bin'
-        write(output,*) 'DATA_SIZE: ', nx, ' ', ny, ' 1'
+        write(output,*) 'DATA_SIZE: ', options%global_nx, ' ', options%global_ny, ' 1'
         write(output,*) 'DATA_FORMAT: DOUBLE'
         write(output,*) 'VARIABLE: phi'
         write(output,*) 'DATA_ENDIAN: LITTLE'
         write(output,*) 'CENTERING: nodal'
-        write(output,*) 'BYTE_OFFSET: 4'
-        write(output,*) 'BRICK_SIZE: ', real(nx-1)*options%dx  , ' ', real(ny-1)*options%dx , ' 1.0'
+        write(output,*) 'BYTE_OFFSET: 0' ! using MPI IO the byte offset is 0
+        write(output,*) 'BRICK_SIZE: ', 1.0  , ' ', real(options%global_ny-1)*options%dx , ' 1.0'
         close (output)
 
         ! print table sumarizing results
@@ -209,7 +210,10 @@ program diffusion_serial
         write(*,'(A)') '-------------------------------------------------------------------------------'
     end if
 
+    call write_parallel('output.bin', x_new)
+
     ! ****************** cleanup ******************
+
 
     ! deallocate global fields
     deallocate(x_new, x_old)
@@ -400,6 +404,8 @@ subroutine initialize_mpi(options, domain)
     domain%ndomx = ndomx
     domain%ndomy = ndomy
     domain%domx = domx
+    domain%domy = domy
+
     domain%domy = domy
 
     do i=0,mpi_size-1

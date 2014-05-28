@@ -11,7 +11,7 @@ endif
 
 
 SOURCES = stats.f90 data.f90 operators.f90 linalg.f90
-OBJ     = stats.o   data.o   operators.o   linalg.o
+OBJ     = stats.o   data.o   operators.o   linalg.o     io.o
 
 .SUFFIXES: .f90
 
@@ -22,6 +22,9 @@ stats.o: stats.f90
 
 data.o: data.f90
 	$(FTN) $(FFLAGS) $(IFLAGS) -c data.f90 -o data.o
+
+io.o: io.f90
+	$(FTN) $(FFLAGS) $(IFLAGS) -c io.f90 -o io.o
 
 operators.o: operators.f90
 	$(FTN) $(FFLAGS) $(IFLAGS) -c operators.f90 -o operators.o
