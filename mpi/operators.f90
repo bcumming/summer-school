@@ -10,7 +10,7 @@ module operators
 
 use mpi
 use stats,     only: flops_diff
-use data,      only: discretizationT, x_old, options, bndN, bndE, bndS, bndW, domain
+use data,      only: discretizationT, x_old, options, bndN, bndE, bndS, bndW, domain, buffN, buffS, buffE, buffW
 
 implicit none
 
@@ -31,17 +31,12 @@ subroutine diffusion(u, s)
     integer :: requests(8)
     integer :: num_requests, err
 
-    real (kind=8), allocatable :: buffN(:), buffS(:), buffE(:), buffW(:)
-
     dxs   = 1000.*(options%dx ** 2)
     alpha = options%alpha
     iend  = options%nx-1
     jend  = options%ny-1
     nx  = options%nx
     ny  = options%ny
-
-    ! allocate memory for buffers
-    allocate(buffN(nx), buffS(nx), buffE(ny), buffW(ny))
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! do the boundary exchange

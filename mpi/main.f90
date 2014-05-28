@@ -16,7 +16,7 @@ program diffusion_serial
     use omp_lib
     use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
-    use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain
+    use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain, buffN, buffS, buffE, buffW
     use operators,    only: diffusion
 
     implicit none
@@ -77,6 +77,9 @@ program diffusion_serial
     call error(ierr /= 0, 'Problem allocating memory')
     allocate(bndE(ny), bndW(ny), stat=ierr)
     call error(ierr /= 0, 'Problem allocating memory')
+
+    ! allocate memory for buffers
+    allocate(buffN(nx), buffS(nx), buffE(ny), buffW(ny))
 
     ! ****************** initialization ******************
     ! set dirichlet boundary conditions to 0 all around
