@@ -14,7 +14,7 @@ program diffusion_serial
     ! modules
     use mpi
     use omp_lib
-    use io,     only: write_parallel
+    use io,     only: write_parallel, write_header
     use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
     use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
     use data,   only: subdomainT, discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options, domain, buffN, buffS, buffE, buffW
@@ -60,7 +60,8 @@ program diffusion_serial
     if (domain%rank == 0) then
         write(*,'(A)') '========================================================================'
         print *,       '                      Welcome to mini-stencil!'
-        print *, 'mesh :: ', nx, '*', ny, '    dx =', options%dx
+        print *,       'MPI : pid ', domain%size
+        print *, 'mesh :: ', options%global_nx, '*', options%global_ny, '    dx =', options%dx
         print *, 'time :: ', nt, 'time steps from 0 .. ', options%nt*options%dt
         write(*,'(A)') '========================================================================'
     endif
@@ -183,26 +184,12 @@ program diffusion_serial
     ! write final solution to BOV file for visualization
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! binary data
-    !if (domain%rank == domain%size-1) then
+    call write_header('output.bov')
+    call write_parallel('output.bin', x_new)
+
+    ! print table sumarizing results
     if (domain%rank == 0) then
         output=20
-        !open(unit=output, file='output.bin', status='replace', form='unformatted')
-        !write(output) x_new
-        !close(output)
-        ! metadata
-        open (unit=output, file='output.bov', status='replace')
-        write(output,*) 'TIME: 0.0'
-        write(output,*) 'DATA_FILE: output.bin'
-        write(output,*) 'DATA_SIZE: ', options%global_nx, ' ', options%global_ny, ' 1'
-        write(output,*) 'DATA_FORMAT: DOUBLE'
-        write(output,*) 'VARIABLE: phi'
-        write(output,*) 'DATA_ENDIAN: LITTLE'
-        write(output,*) 'CENTERING: nodal'
-        write(output,*) 'BYTE_OFFSET: 0' ! using MPI IO the byte offset is 0
-        write(output,*) 'BRICK_SIZE: ', 1.0  , ' ', real(options%global_ny-1)*options%dx , ' 1.0'
-        close (output)
-
-        ! print table sumarizing results
         write(*,'(A)') '--------------------------------------------------------------------------------'
         write(*,*) 'simulation took ', timespent , ' seconds'
         write(*,*) iters_cg , ' conjugate gradient iterations', iters_cg/timespent, ' per second'
@@ -210,10 +197,7 @@ program diffusion_serial
         write(*,'(A)') '-------------------------------------------------------------------------------'
     end if
 
-    call write_parallel('output.bin', x_new)
-
     ! ****************** cleanup ******************
-
 
     ! deallocate global fields
     deallocate(x_new, x_old)

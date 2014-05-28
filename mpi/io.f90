@@ -8,6 +8,32 @@ implicit none
 
 contains
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+subroutine write_header(filename)
+    ! arguments
+    character(len=*)          :: filename
+
+    ! variables
+    integer :: output
+    output=20
+
+    ! metadata
+    open (unit=output, file='output.bov', status='replace')
+    write(output,*) 'TIME: 0.0'
+    write(output,*) 'DATA_FILE: output.bin'
+    write(output,*) 'DATA_SIZE: ', options%global_nx, ' ', options%global_ny, ' 1'
+    write(output,*) 'DATA_FORMAT: DOUBLE'
+    write(output,*) 'VARIABLE: phi'
+    write(output,*) 'DATA_ENDIAN: LITTLE'
+    write(output,*) 'CENTERING: nodal'
+    write(output,*) 'BYTE_OFFSET: 0' ! using MPI IO the byte offset is 0
+    write(output,*) 'BRICK_SIZE: ', 1.0  , ' ', real(options%global_ny-1)*options%dx , ' 1.0'
+    close (output)
+end subroutine write_header
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 subroutine write_parallel(filename, u)
     ! arguments
     real (kind=8), intent(in) :: u(options%nx,options%ny)
