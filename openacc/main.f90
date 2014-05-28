@@ -170,9 +170,7 @@ program diffusion_serial
             ! check for convergence
             if(residual<tolerance) then
                 converged = .true.
-            else
-                ! no convergence, so solve linear system
-
+            else    ! no convergence, so solve linear system
                 ! solve linear system to get -deltax
                 call ss_cg(deltax, b, 200, tolerance, cg_converged)
 
