@@ -26,7 +26,7 @@ subroutine diffusion(u, s)
     ! local variables
     real (kind=8) :: alpha, dxs
     integer :: i, j
-    integer :: iend, jend, nx, ny
+    integer :: iend, jend
     integer :: stats(MPI_STATUS_SIZE,8)
     integer :: requests(8)
     integer :: num_requests, err
@@ -35,8 +35,6 @@ subroutine diffusion(u, s)
     alpha = options%alpha
     iend  = options%nx-1
     jend  = options%ny-1
-    nx  = options%nx
-    ny  = options%ny
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc parallel present(s, u, x_old, bndE, bndW, bndN, bndS, options)

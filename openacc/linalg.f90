@@ -10,8 +10,8 @@ use operators, only: diffusion
 
 implicit none
 
+logical :: cg_initialized=.false.
 real (kind=8), allocatable :: r(:), Ap(:), p(:), Fx(:), Fxold(:), v(:), xold(:)
-logical :: cg_initialized
 
 contains
 
@@ -27,6 +27,7 @@ subroutine cg_init(N)
     allocate(Ap(N), r(N), p(N), Fx(N), Fxold(N), v(N), xold(N))
     cg_initialized = .true.
 end
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   blas level 1 reductions
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -15,7 +15,7 @@ program diffusion_serial
     ! modules
     use omp_lib
     use stats,  only: flops_diff, flops_bc, flops_blas1, iters_cg, iters_newton
-    use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2
+    use linalg, only: ss_copy, ss_scale, ss_cg, ss_axpy, ss_norm2, cg_init
     use data,   only: discretizationT, x_new, x_old, bndN, bndE, bndS, bndW, options
     use operators,    only: diffusion
 
@@ -55,6 +55,7 @@ program diffusion_serial
 
     write(*,'(A)') '========================================================================'
     print *,       '                      Welcome to mini-stencil!'
+    print *,       'OpenMP threads: ', omp_get_max_threads()
     print *, 'mesh :: ', nx, '*', ny, '    dx =', options%dx
     print *, 'time :: ', nt, 'time steps from 0 .. ', options%nt*options%dt
     write(*,'(A)') '========================================================================'
@@ -72,6 +73,9 @@ program diffusion_serial
     call error(ierr /= 0, 'Problem allocating memory')
     allocate(bndE(ny), bndW(ny), stat=ierr)
     call error(ierr /= 0, 'Problem allocating memory')
+
+    ! initialise memory required by conjugate gradient
+    call cg_init(N)
 
     ! ****************** initialization ******************
     ! set dirichlet boundary conditions to 0 all around
@@ -112,12 +116,18 @@ program diffusion_serial
     ! main timeloop
     alpha = options%alpha
     tolerance = 1.e-6
-    do timestep = 1, nt
+
+    converged = .true.
+    timestep = 1;
+    do while(timestep<=nt .and. converged)
         ! set x_new and x_old to be the solution
         call ss_copy(x_old, x_new, N)
 
         converged = .false.
-        do it = 1, 50
+        cg_converged = .true.
+
+        it = 0
+        do while( (it<50) .and. (.not. converged) .and. cg_converged )
             ! compute residual : requires both x_new and x_old
             call diffusion(x_new, b)
             residual = ss_norm2(b, N)
@@ -125,19 +135,14 @@ program diffusion_serial
             ! check for convergence
             if(residual<tolerance) then
                 converged = .true.
-                exit
+            else
+                ! solve linear system to get -deltax
+                call ss_cg(deltax, b, 200, tolerance, cg_converged)
+
+                ! update solution
+                call ss_axpy(x_new, -one, deltax, N)
             endif
-
-            ! solve linear system to get -deltax
-            call ss_cg(deltax, b, 200, tolerance, cg_converged)
-
-            ! check that the CG solver converged
-            if(.NOT. cg_converged) then
-                exit
-            endif
-
-            ! update solution
-            call ss_axpy(x_new, -one, deltax, N)
+            it = it + 1
         end do
         iters_newton = iters_newton+it
 
@@ -152,6 +157,8 @@ program diffusion_serial
                        ' ERROR : nonlinear iterations failed to converge'
             exit
         endif
+
+        timestep = timestep+1
     end do
 
     ! get times

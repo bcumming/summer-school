@@ -81,6 +81,8 @@ program diffusion_serial
     ! allocate buffers for MPI
     allocate(buffN(nx), buffS(nx), buffE(ny), buffW(ny))
 
+    ! initialise memory required by conjugate gradient
+    ! do this here so that is available outside the main OpenACC data region
     call cg_init(N)
 
     ! ****************** initialization ******************
@@ -150,7 +152,6 @@ program diffusion_serial
     timespent = -omp_get_wtime();
 
     do while(timestep<=nt .and. converged)
-
         ! set x_new and x_old to be the solution
         call ss_copy(x_old, x_new, N)
 

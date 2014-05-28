@@ -64,7 +64,6 @@ subroutine diffusion(u, s)
     !---------------------------------------------
     ! the east boundary
     !---------------------------------------------
-    !!$omp task
     i = options%nx
     do j = 2, jend
         s(i,j) = -(4.+alpha) * u(i,j)        &
@@ -72,7 +71,6 @@ subroutine diffusion(u, s)
                     + alpha*x_old(i,j) + bndE(j) &
                     + dxs*u(i,j)*(1.0_8 - u(i,j))
     end do
-    !!$omp end task
     !---------------------------------------------
 
     ! the west boundary
@@ -85,12 +83,10 @@ subroutine diffusion(u, s)
                     + alpha*x_old(i,j) + bndW(j) &
                     + dxs*u(i,j)*(1.0_8 - u(i,j))
     end do
-    !!$omp end task
     !---------------------------------------------
 
     ! the north boundary (plus NE and NW corners)
     !---------------------------------------------
-    !!$omp task
     j = options%ny
     i = 1 ! NW corner
     s(i,j) = -(4.+alpha) * u(i,j)           &
@@ -106,23 +102,19 @@ subroutine diffusion(u, s)
                     + alpha*x_old(i,j) + bndN(i) &
                     + dxs*u(i,j)*(1.0_8 - u(i,j))
     end do
-    !!$omp end task
     !---------------------------------------------
 
     !---------------------------------------------
-    !!$omp task
     i = options%nx ! NE corner
     s(i,j) = -(4.+alpha) * u(i,j)       &
                 + u(i-1, j) + u(i, j-1) &
                 + alpha*x_old(i,j)      &
                 + bndE(j) + bndN(i) &
                 + dxs*u(i,j)*(1.0_8 - u(i,j))
-    !!$omp end task
     !---------------------------------------------
 
     ! the south boundary
     !---------------------------------------------
-    !!$omp task
     j = 1
     i = 1 ! SW corner
     s(i,j) = -(4.+alpha) * u(i,j)       &
@@ -147,7 +139,6 @@ subroutine diffusion(u, s)
                 + alpha*x_old(i,j)      &
                 + bndE(j) + bndS(i) &
                 + dxs*u(i,j)*(1.0_8 - u(i,j))
-    !!$omp end task
     !---------------------------------------------
 
 
