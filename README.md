@@ -4,7 +4,13 @@ This is a simple application that solves a simple reaction diffusion equation in
 
 The equation is Fisher's equation, a simple nonlinear reaction diffusion equation that is used to model simple population dynamics.
 
-<img src="http://www.sciweavers.org/tex2img.php?eq=%5Cfrac%7B%5Cpartial%5E2u%7D%7B%5Cpartial%20t%5E2%7D%3DD%5Cfrac%7B%5Cpartial%5E2u%7D%7B%5Cpartial%20x%5E2%7D%20%2B%20Ru%281-u%29%20&bc=White&fc=Black&im=gif&fs=12&ff=arev&edit=0" align="center" border="0" alt="\frac{\partial^2u}{\partial t^2}=D\frac{\partial^2u}{\partial x^2} + Ru(1-u) " width="200" height="46" />
+```
+  2      2                
+ d u    d u               
+---- = D---  +  Ru(1 - u) 
+   2      2               
+d t     dx      
+```
 
 Where the diffusion parameter _D_ and the growth rate _R_ have been hard coded in this case to give stable and interesting results.
 
