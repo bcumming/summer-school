@@ -1,7 +1,20 @@
 FTN = ftn
 
-FFLAGS = -rmd -hacc -O3
-FFLAGS += -e Z # use c-style preprocessing
+FFLAGS =
+ifeq ($(PE_ENV),PGI)
+	# -Mifno outputs extra diagnostic information
+	# -hacc generates accelerated kernels from openacc directives
+	FFLAGS  = -Minfo=accel -acc=verystrict
+	FFLAGS += -ta=nvidia,nofma,cc35,cuda5.5 # target architecture
+	FFLAGS += -Mpreprocess # use c-style preprocessing
+	FFLAGS += -g # debug flags
+endif
+ifeq ($(PE_ENV),CRAY)
+	# -rmd outputs extra diagnostic files
+	# -hacc generates accelerated kernels from openacc directives
+	FFLAGS  = -rmd -hacc -O3
+	FFLAGS += -e Z # use c-style preprocessing
+endif
 
 SOURCES = stats.f90 data.f90 operators.f90 linalg.f90
 OBJ     = stats.o   data.o   operators.o     linalg.o     io.o
