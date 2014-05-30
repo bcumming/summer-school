@@ -280,10 +280,6 @@ subroutine ss_cg(x, b, maxiters, tol, success)
     real (kind=8)              :: alpha, rold, rnew, eps, eps_inv
     real (kind=8)              :: one, zero
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !$acc data present(x, b, Ap, p, r, v, Fx, Fxold, xold)
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
     ! this is the dimension of the linear system that we are to solve
     N = options%N
 
@@ -358,10 +354,6 @@ subroutine ss_cg(x, b, maxiters, tol, success)
         rold = rnew
     enddo
     iters_cg = iters_cg + iter
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !$acc end data
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end
 
 end module linalg
