@@ -4,8 +4,9 @@ FFLAGS =
 ifeq ($(PE_ENV),PGI)
 	# -Mifno outputs extra diagnostic information
 	# -hacc generates accelerated kernels from openacc directives
-	FFLAGS  = -Minfo=accel -acc=verystrict
+	FFLAGS  = -acc=verystrict
 	FFLAGS += -ta=nvidia,nofma,cc35,cuda5.5 # target architecture
+	#FFLAGS  = -Minfo=accel
 	FFLAGS += -Mpreprocess # use c-style preprocessing
 	FFLAGS += -g # debug flags
 endif
