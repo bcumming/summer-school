@@ -10,9 +10,9 @@
 #include "operators.h"
 #include "stats.h"
 
-#define U(i,j)    up[(i) + j*nx]
-#define S(i,j)    sp[(i) + j*nx]
-#define X(i,j) x_old[(i) + j*nx]
+#define U(j,i)    up[(i) + (j)*nx]
+#define S(j,i)    sp[(i) + (j)*nx]
+#define X(j,i) x_old[(i) + (j)*nx]
 
 void diffusion(const double* up, double* sp)
 {
@@ -30,10 +30,10 @@ void diffusion(const double* up, double* sp)
     int    iend  = options.nx - 1;
     int    jend  = options.ny - 1;
 
-	int i,j;
+    int i,j;
 
-	int nx=options.nx;
-	int ny=options.ny;
+    int nx=options.nx;
+    int ny=options.ny;
 
     // the interior grid points
     for (j = 1; j < jend; j++)
@@ -45,7 +45,7 @@ void diffusion(const double* up, double* sp)
 
                                     + alpha*X(j,i)
                                     + dxs*U(j,i)*(1.0 - U(j,i));
-		}
+        }
     // the east boundary
     {
         i = options.nx - 1;
@@ -117,7 +117,7 @@ void diffusion(const double* up, double* sp)
                         + alpha * X(j, i) + bndS[i]
                         + dxs * U(j, i) * (1.0 - U(j, i));
         }
-		//
+        //
         {
             i = options.nx - 1; // SE corner
             S(j, i) = -(4. + alpha) * U(j, i)
