@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
         {
             double x = (i - 1) * options.dx;
             if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-                ((double(*)[nx])x_new)[j][i] = 0.1;
+                x_new[i+nx*j] = 0.1;
         }
     }
 
