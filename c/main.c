@@ -122,8 +122,8 @@ int main(int argc, char* argv[])
     double xc = 1.0 / 4.0;
     double yc = (ny - 1) * options.dx / 4;
     double radius = fmin(xc, yc) / 2.0;
-	int i,j;
-	//
+    int i,j;
+    //
     for (j = 0; j < ny; j++)
     {
         double y = (j - 1) * options.dx;
@@ -131,7 +131,8 @@ int main(int argc, char* argv[])
         {
             double x = (i - 1) * options.dx;
             if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-                ((double(*)[nx])x_new)[j][i] = 0.1;
+                //((double(*)[nx])x_new)[j][i] = 0.1;
+                x_new[i+j*nx] = 0.1;
         }
     }
 
@@ -150,7 +151,7 @@ int main(int argc, char* argv[])
     // main timeloop
     double alpha = options.alpha;
     double tolerance = 1.e-6;
-	int timestep;
+    int timestep;
     for (timestep = 1; timestep <= nt; timestep++)
     {
         // set x_new and x_old to be the solution
