@@ -2,8 +2,9 @@ CXX = gcc
 CXXFLAGS = -O3 -mtune=native -ffast-math -g -fopenmp
 CXXFLAGS = -O3 -fopenmp 
 
-#CXX= cc
-#CXXFLAGS=-O3
+CXX= cc
+CXXFLAGS=-O3
+CXXFLAGS=-O3 -openmp
 
 SOURCES = stats.c data.c operators.c linalg.c
 HEADERS = stats.h   data.h   operators.h   linalg.h
@@ -26,7 +27,7 @@ linalg.o: linalg.c linalg.h
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c linalg.c -o linalg.o
 
 main: $(OBJ) main.c $(HEADERS)
-	$(CXX) $(CXXFLAGS) -lm *.o main.c -o main
+	$(CXX) $(CXXFLAGS) *.o main.c -o main
 
 clean:
 	rm -f main

@@ -2,6 +2,12 @@ CXX = g++
 CXXFLAGS = -O3 -mtune=native -ffast-math -g -fopenmp
 CXXFLAGS = -O2 -fopenmp
 
+CXX=CC
+CXXFLAGS = -O3
+
+CXX=CC
+CXXFLAGS = -O3 -openmp
+
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
 HEADERS = stats.h   data.h   operators.h   linalg.h
 OBJ     = stats.o   data.o   operators.o   linalg.o
