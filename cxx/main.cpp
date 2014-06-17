@@ -162,8 +162,8 @@ int main(int argc, char* argv[])
 
         double residual;
         bool converged = false;
-        int it = 1;
-        for ( ; it <= 50; it++)
+        int it;
+        for (it=0; it<50; it++)
         {
             // compute residual : requires both x_new and x_old
             diffusion(x_new, b);
@@ -186,7 +186,7 @@ int main(int argc, char* argv[])
             // update solution
             ss_axpy(x_new, -1.0, deltax, N);
         }
-        iters_newton += it;
+        iters_newton += it+1;
 
         // output some statistics
         //if (converged && verbose_output)
