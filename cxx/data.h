@@ -5,7 +5,7 @@ namespace data
 {
     // define some helper types that can be used to pass simulation
     // data around without haveing to pass individual parameters
-    struct discretization_t
+    struct Discretization
     {
         int nx;       // x dimension
         int ny;       // y dimension
@@ -20,7 +20,7 @@ namespace data
     extern double *x_new, *x_old; // 2d
     extern double *bndN, *bndE, *bndS, *bndW; // 1d
 
-    extern discretization_t options;
+    extern Discretization options;
 }
 
 #endif // DATA_H

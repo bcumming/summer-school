@@ -2,9 +2,16 @@
 
 #include <stdio.h>
 
-// fields that hold the solution
-double *data::x_new = NULL, *data::x_old = NULL; // 2d
-double *data::bndN = NULL, *data::bndE = NULL, *data::bndS = NULL, *data::bndW = NULL;
+namespace data{
+    // fields that hold the solution
+    double *x_new = NULL;
+    double *x_old = NULL;
 
-data::discretization_t data::options;
+    // fields that hold the boundary points
+    double *bndN = NULL;
+    double *bndE = NULL;
+    double *bndS = NULL;
+    double *bndW = NULL;
 
+    Discretization options;
+}

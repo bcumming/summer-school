@@ -10,11 +10,11 @@
 #include "operators.h"
 #include "stats.h"
 
-using namespace operators;
+namespace operators {
 
-void operators::diffusion(const double* up, double* sp)
+void diffusion(const double* up, double* sp)
 {
-    data::discretization_t& options = data::options;
+    data::Discretization& options = data::options;
 
     double (*u)[options.nx] = (double(*)[options.nx])up;
     double (*s)[options.nx] = (double(*)[options.nx])sp;
@@ -30,15 +30,16 @@ void operators::diffusion(const double* up, double* sp)
 
     // the interior grid points
     for (int j = 1; j < jend; j++)
+    {
         for (int i = 1; i < iend; i++)
         {
             s[j][i] = -(4. + alpha) * u[j][i]               // central point
                                     + u[j][i-1] + u[j][i+1] // east and west
                                     + u[j-1][i] + u[j+1][i] // north and south
-
                                     + alpha * x_old[j][i]
                                     + dxs * u[j][i] * (1.0 - u[j][i]);
-                }
+        }
+    }
 
     // the east boundary
     {
@@ -135,3 +136,4 @@ void operators::diffusion(const double* up, double* sp)
         + 11 * 4;                                  // corner points
 }
 
+} // namespace operators

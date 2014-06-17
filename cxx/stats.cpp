@@ -1,5 +1,10 @@
 #include "stats.h"
 
-unsigned long long stats::flops_diff, stats::flops_bc, stats::flops_blas1;
-unsigned int stats::iters_cg, stats::iters_newton;
-bool stats::verbose_output;
+namespace stats {
+    unsigned long long flops_diff;
+    unsigned long long flops_bc;
+    unsigned long long flops_blas1;
+    unsigned int iters_cg;
+    unsigned int iters_newton;
+    bool verbose_output;
+} // namespace stats
