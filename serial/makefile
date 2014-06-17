@@ -1,6 +1,13 @@
 FTN = ftn
 FFLAGS = -O2
-#FFLAGS += -e Z # use c-style preprocessing
+ifeq ($(PE_ENV),GNU)
+    # the gnu compiler requires that we specifically enable OpenMP
+	FFLAGS=-O3 -fopenmp
+endif
+ifeq ($(PE_ENV),CRAY)
+	FFLAGS=-O3
+	#FFLAGS += -e Z # use c-style preprocessing
+endif
 
 SOURCES = stats.f90 data.f90 operators.f90 linalg.f90
 OBJ     = stats.o   data.o   operators.o   linalg.o

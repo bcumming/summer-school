@@ -8,9 +8,17 @@
 #include <math.h>
 #include <stdio.h>
 
-bool linalg::cg_initialized = false;
-double *linalg::r = NULL, *linalg::Ap = NULL, *linalg::p = NULL;
-double *linalg::Fx = NULL, *linalg::Fxold = NULL, *linalg::v = NULL, *linalg::xold = NULL; // 1d
+
+namespace linalg {
+
+bool cg_initialized = false;
+double *r = NULL;
+double *Ap = NULL;
+double *p = NULL;
+double *Fx = NULL;
+double *Fxold = NULL;
+double *v = NULL;
+double *xold = NULL;
 
 using namespace operators;
 using namespace stats;
@@ -20,7 +28,7 @@ using namespace stats;
 // to the CG solver. This is useful if we want to avoid malloc/free calls
 // on the device for the OpenACC implementation (feel free to suggest a better
 // method for doing this)
-void linalg::cg_init(const int N)
+void cg_init(const int N)
 {
     Ap = new double[N];
     r = new double[N];
@@ -39,7 +47,7 @@ void linalg::cg_init(const int N)
 
 // computes the inner product of x and y
 // x and y are vectors on length N
-double linalg::ss_dot(const double* x, const double* y, const int N)
+double ss_dot(const double* x, const double* y, const int N)
 {
     double result = 0;
     for (int i = 0; i < N; i++)
@@ -53,7 +61,7 @@ double linalg::ss_dot(const double* x, const double* y, const int N)
 
 // computes the 2-norm of x
 // x is a vector on length N
-double linalg::ss_norm2(const double* x, const int N)
+double ss_norm2(const double* x, const int N)
 {
     double result = 0;
     for (int i = 0; i < N; i++)
@@ -70,7 +78,7 @@ double linalg::ss_norm2(const double* x, const int N)
 // sets entries in a vector to value
 // x is a vector on length N
 // value is th
-void linalg::ss_fill(double* x, const double value, const int N)
+void ss_fill(double* x, const double value, const int N)
 {
     for (int i = 0; i < N; i++)
         x[i] = value;
@@ -83,7 +91,7 @@ void linalg::ss_fill(double* x, const double value, const int N)
 // computes y := alpha*x + y
 // x and y are vectors on length N
 // alpha is a scalar
-void linalg::ss_axpy(double* y, const double alpha, const double* x, const int N)
+void ss_axpy(double* y, const double alpha, const double* x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] += alpha * x[i];
@@ -95,7 +103,7 @@ void linalg::ss_axpy(double* y, const double alpha, const double* x, const int N
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-void linalg::ss_add_scaled_diff(double* y, const double* x, const double alpha,
+void ss_add_scaled_diff(double* y, const double* x, const double alpha,
     const double* l, const double* r, const int N)
 {
     for (int i = 0; i < N; i++)
@@ -108,7 +116,7 @@ void linalg::ss_add_scaled_diff(double* y, const double* x, const double alpha,
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-void linalg::ss_scaled_diff(double* y, const double alpha,
+void ss_scaled_diff(double* y, const double alpha,
     const double* l, const double* r, const int N)
 {
     for (int i = 0; i < N; i++)
@@ -121,7 +129,7 @@ void linalg::ss_scaled_diff(double* y, const double alpha,
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors on length n
-void linalg::ss_scale(double* y, const double alpha, double* x, const int N)
+void ss_scale(double* y, const double alpha, double* x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i];
@@ -133,7 +141,7 @@ void linalg::ss_scale(double* y, const double alpha, double* x, const int N)
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors on length n
-void linalg::ss_lcomb(double* y, const double alpha, double* x, const double beta,
+void ss_lcomb(double* y, const double alpha, double* x, const double beta,
     const double* z, const int N)
 {
     for (int i = 0; i < N; i++)
@@ -145,7 +153,7 @@ void linalg::ss_lcomb(double* y, const double alpha, double* x, const double bet
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-void linalg::ss_copy(double* y, const double* x, const int N)
+void ss_copy(double* y, const double* x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = x[i];
@@ -158,9 +166,9 @@ void linalg::ss_copy(double* y, const double* x, const int N)
 // x(N)
 // ON ENTRY contains the initial guess for the solution
 // ON EXIT  contains the solution
-void linalg::ss_cg(double* x, const double* b, const int maxiters, const double tol, bool& success)
+void ss_cg(double* x, const double* b, const int maxiters, const double tol, bool& success)
 {
-    data::discretization_t& options = data::options;
+    data::Discretization& options = data::options;
 
     // this is the dimension of the linear system that we are to solve
     int N = options.N;
@@ -252,3 +260,4 @@ void linalg::ss_cg(double* x, const double* b, const int maxiters, const double 
     }
 }
 
+} // namespace linalg

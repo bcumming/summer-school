@@ -8,11 +8,14 @@
 
 // Syntax: ./main nx ny nt t
 
-#include <math.h>
 #include <omp.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+
+#include <algorithm>
 
 #include "data.h"
 #include "linalg.h"
@@ -27,7 +30,7 @@ using namespace stats;
 // ==============================================================================
 
 // read command line arguments
-static void readcmdline(discretization_t& options, int argc, char* argv[])
+static void readcmdline(Discretization& options, int argc, char* argv[])
 {
     if (argc != 5)
     {
@@ -114,15 +117,15 @@ int main(int argc, char* argv[])
     double* deltax = new double[N];
 
     // set dirichlet boundary conditions to 0 all around
-    memset(bndN, 0, sizeof(double) * nx);
-    memset(bndS, 0, sizeof(double) * nx);
-    memset(bndE, 0, sizeof(double) * ny);
-    memset(bndW, 0, sizeof(double) * ny);
+    std::fill(bndN, bndN+nx, 0.);
+    std::fill(bndS, bndS+nx, 0.);
+    std::fill(bndE, bndE+ny, 0.);
+    std::fill(bndW, bndW+ny, 0.);
 
     // set the initial condition
     // a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
     // no larger than 1/8 of both xdim and ydim
-    memset(x_new, 0, sizeof(double) * nx * ny);
+    std::fill(x_new, x_new+nx*ny, 0.);
     double xc = 1.0 / 4.0;
     double yc = (ny - 1) * options.dx / 4;
     double radius = fmin(xc, yc) / 2.0;
@@ -159,8 +162,8 @@ int main(int argc, char* argv[])
 
         double residual;
         bool converged = false;
-        int it = 1;
-        for ( ; it <= 50; it++)
+        int it;
+        for (it=0; it<50; it++)
         {
             // compute residual : requires both x_new and x_old
             diffusion(x_new, b);
@@ -183,7 +186,7 @@ int main(int argc, char* argv[])
             // update solution
             ss_axpy(x_new, -1.0, deltax, N);
         }
-        iters_newton += it;
+        iters_newton += it+1;
 
         // output some statistics
         //if (converged && verbose_output)
@@ -221,7 +224,6 @@ int main(int argc, char* argv[])
         fprintf(output, "VARIABLE: phi\n");
         fprintf(output, "DATA_ENDIAN: LITTLE\n");
         fprintf(output, "CENTERING: nodal\n");
-        //fprintf(output, "BYTE_OFFSET: 4\n");
         fprintf(output, "BRICK_SIZE: 1.0 %f 1.0\n", (ny - 1) * options.dx);
         fclose(output);
     }
@@ -229,7 +231,9 @@ int main(int argc, char* argv[])
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
     printf("simulation took %f seconds\n", timespent);
-    printf("%d conjugate gradient iterations\n", int(iters_cg));
+    printf("%d conjugate gradient iterations, at rate of %8.1f iters/second\n",
+            int(iters_cg),
+            float(iters_newton/timespent));
     printf("%d newton iterations\n", int(iters_newton));
     printf("--------------------------------------------------------------------------------\n");
 
