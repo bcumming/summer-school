@@ -33,12 +33,13 @@ using namespace stats;
 // read command line arguments
 static void readcmdline(Discretization& options, int argc, char* argv[])
 {
-    if (argc != 5) {
+    if (argc<5 || argc>6 ) {
         std::cerr << "Usage: main nx ny nt t\n";
         std::cerr << "  nx  number of gridpoints in x-direction\n";
         std::cerr << "  ny  number of gridpoints in y-direction\n";
         std::cerr << "  nt  number of timesteps\n";
         std::cerr << "  t   total time\n";
+        std::cerr << "  v   [optional] turn on verbose output\n";
         exit(1);
     }
 
@@ -69,6 +70,9 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
         std::cerr << "t must be positive real value\n";
         exit(-1);
     }
+
+    if( argc==6 )
+        verbose_output = true;
 
     // compute timestep size
     options.dt = t / options.nt;
@@ -117,19 +121,19 @@ int main(int argc, char* argv[])
     }
 
     // allocate global fields
-    x_new = new double[nx * ny];
-    x_old = new double[nx * ny];
-    bndN = new double[nx];
-    bndS = new double[nx];
-    bndE = new double[ny];
-    bndW = new double[ny];
-    buffN = new double[nx];
-    buffS = new double[nx];
-    buffE = new double[ny];
-    buffW = new double[ny];
+    x_new.init(nx,ny);
+    x_old.init(nx,ny);
+    bndN.init(nx,1);
+    bndS.init(nx,1);
+    bndE.init(ny,1);
+    bndW.init(ny,1);
+    buffN.init(nx,1);
+    buffS.init(nx,1);
+    buffE.init(ny,1);
+    buffW.init(ny,1);
 
-    double* b = new double[N];
-    double* deltax = new double[N];
+    Field b(nx,ny);
+    Field deltax(nx,ny);
 
     // set dirichlet boundary conditions to 0 all around
     ss_fill(bndN, 0., nx);
@@ -151,7 +155,7 @@ int main(int argc, char* argv[])
         {
             double x = (i - 1) * options.dx;
             if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-                x_new[i+nx*j] = 0.1;
+                x_new(i,j) = 0.1;
         }
     }
 
@@ -163,9 +167,6 @@ int main(int argc, char* argv[])
     verbose_output = false;
     iters_cg = 0;
     iters_newton = 0;
-
-    Field x_new_twod(x_new, nx, ny);
-    Field b_twod(b, nx, ny);
 
     // start timer
     double timespent = -omp_get_wtime();
@@ -184,8 +185,7 @@ int main(int argc, char* argv[])
         for (it=0; it<50; it++)
         {
             // compute residual : requires both x_new and x_old
-            //diffusion(x_new, b);
-            diffusion(x_new_twod, b_twod);
+            diffusion(x_new, b);
             residual = ss_norm2(b, N);
 
             // check for convergence
@@ -234,7 +234,7 @@ int main(int argc, char* argv[])
         // binary data
         {
             FILE* output = fopen("output.bin", "w");
-            fwrite(x_new, sizeof(double), nx * ny, output);
+            fwrite(x_new.data(), sizeof(double), nx * ny, output);
             fclose(output);
         }
 
@@ -266,16 +266,16 @@ int main(int argc, char* argv[])
     }
 
     // deallocate global fields
-    delete[] x_new;
-    delete[] x_old;
-    delete[] bndN;
-    delete[] bndS;
-    delete[] bndE;
-    delete[] bndW;
-    delete[] buffN;
-    delete[] buffS;
-    delete[] buffE;
-    delete[] buffW;
+    //delete[] x_new;
+    //delete[] x_old;
+    //delete[] bndN;
+    //delete[] bndS;
+    //delete[] bndE;
+    //delete[] bndW;
+    //delete[] buffN;
+    //delete[] buffS;
+    //delete[] buffE;
+    //delete[] buffW;
 
     if(domain.rank==0)
         std::cout << "Goodbye!" << std::endl;

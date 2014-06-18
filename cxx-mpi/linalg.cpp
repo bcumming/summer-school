@@ -11,35 +11,37 @@
 #include "linalg.h"
 #include "operators.h"
 #include "stats.h"
+#include "data.h"
 
 namespace linalg {
 
 bool cg_initialized = false;
-double *r = NULL;
-double *Ap = NULL;
-double *p = NULL;
-double *Fx = NULL;
-double *Fxold = NULL;
-double *v = NULL;
-double *xold = NULL;
+Field r;
+Field Ap;
+Field p;
+Field Fx;
+Field Fxold;
+Field v;
+Field xold;
 
 using namespace operators;
 using namespace stats;
+using data::Field;
 
 // initialize temporary storage fields used by the cg solver
 // I do this here so that the fields are persistent between calls
 // to the CG solver. This is useful if we want to avoid malloc/free calls
 // on the device for the OpenACC implementation (feel free to suggest a better
 // method for doing this)
-void cg_init(const int N)
+void cg_init(int nx, int ny)
 {
-    Ap = new double[N];
-    r = new double[N];
-    p = new double[N];
-    Fx = new double[N];
-    Fxold = new double[N];
-    v = new double[N];
-    xold = new double[N];
+    Ap.init(nx,ny);
+    r.init(nx,ny);
+    p.init(nx,ny);
+    Fx.init(nx,ny);
+    Fxold.init(nx,ny);
+    v.init(nx,ny);
+    xold.init(nx,ny);
 
     cg_initialized = true;
 }
@@ -50,7 +52,7 @@ void cg_init(const int N)
 
 // computes the inner product of x and y
 // x and y are vectors on length N
-double ss_dot(const double* x, const double* y, const int N)
+double ss_dot(Field const& x, Field const& y, const int N)
 {
     double result = 0;
     double result_global = 0;
@@ -65,7 +67,7 @@ double ss_dot(const double* x, const double* y, const int N)
 
 // computes the 2-norm of x
 // x is a vector on length N
-double ss_norm2(const double* x, const int N)
+double ss_norm2(Field const& x, const int N)
 {
     double result = 0;
     double result_global = 0;
@@ -81,7 +83,7 @@ double ss_norm2(const double* x, const int N)
 // sets entries in a vector to value
 // x is a vector on length N
 // value is th
-void ss_fill(double* x, const double value, const int N)
+void ss_fill(Field& x, const double value, const int N)
 {
     for (int i = 0; i < N; i++)
         x[i] = value;
@@ -94,7 +96,7 @@ void ss_fill(double* x, const double value, const int N)
 // computes y := alpha*x + y
 // x and y are vectors on length N
 // alpha is a scalar
-void ss_axpy(double* y, const double alpha, const double* x, const int N)
+void ss_axpy(Field& y, const double alpha, Field const& x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] += alpha * x[i];
@@ -103,8 +105,8 @@ void ss_axpy(double* y, const double alpha, const double* x, const int N)
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-void ss_add_scaled_diff(double* y, const double* x, const double alpha,
-    const double* l, const double* r, const int N)
+void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
+    Field const& l, Field const& r, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = x[i] + alpha * (l[i] - r[i]);
@@ -113,8 +115,8 @@ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-void ss_scaled_diff(double* y, const double alpha,
-    const double* l, const double* r, const int N)
+void ss_scaled_diff(Field& y, const double alpha,
+    Field const& l, Field const& r, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * (l[i] - r[i]);
@@ -123,7 +125,7 @@ void ss_scaled_diff(double* y, const double alpha,
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors on length n
-void ss_scale(double* y, const double alpha, double* x, const int N)
+void ss_scale(Field& y, const double alpha, Field& x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i];
@@ -132,8 +134,8 @@ void ss_scale(double* y, const double alpha, double* x, const int N)
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors on length n
-void ss_lcomb(double* y, const double alpha, double* x, const double beta,
-    const double* z, const int N)
+void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
+    Field const& z, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i] + beta * z[i];
@@ -141,7 +143,7 @@ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-void ss_copy(double* y, const double* x, const int N)
+void ss_copy(Field& y, Field const& x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = x[i];
@@ -154,7 +156,7 @@ void ss_copy(double* y, const double* x, const int N)
 // x(N)
 // ON ENTRY contains the initial guess for the solution
 // ON EXIT  contains the solution
-void ss_cg(double* x, const double* b, const int maxiters, const double tol, bool& success)
+void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool& success)
 {
     // this is the dimension of the linear system that we are to solve
     int N = data::domain.N;
@@ -162,13 +164,7 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
     int ny = data::domain.ny;
 
     if (!cg_initialized)
-        cg_init(N);
-
-    // create 2D wrappers for the vectors that will be passed to the diffusion operator
-    data::Field x_twod(x, nx, ny);
-    data::Field v_twod(v, nx, ny);
-    data::Field Fx_twod(Fx, nx, ny);
-    data::Field Fxold_twod(Fxold, nx, ny);
+        cg_init(nx,ny);
 
     // epslion value use for matrix-vector approximation
     double eps     = 1.e-8;
@@ -184,15 +180,13 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
     //     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
     // we compute Fxold at startup
     // we have to keep x so that we can compute the F(x+exps*v)
-    //diffusion(x, Fxold);
-    diffusion(x_twod, Fxold_twod);
+    diffusion(x, Fxold);
 
     // v = x + epsilon*x
     ss_scale(v, 1.0 + eps, x, N);
 
     // Fx = F(v)
-    //diffusion(v, Fx);
-    diffusion(v_twod, Fx_twod);
+    diffusion(v, Fx);
 
     // r = b - A*x
     // where A*x = (Fx-Fxold)/eps
@@ -216,8 +210,7 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
     for(iter=0; iter<maxiters; iter++) {
         // Ap = A*p
         ss_lcomb(v, 1.0, xold, eps, p, N);
-        //diffusion(v, Fx);
-        diffusion(v_twod, Fx_twod);
+        diffusion(v, Fx);
         ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
 
         // alpha = rold / p'*Ap

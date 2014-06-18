@@ -66,29 +66,17 @@ struct SubDomain
     int N;
 };
 
-// fields that hold the solution
-extern double *x_new; // 2d
-extern double *x_old; // 2d
-
-// fields that hold the boundary values
-extern double *bndN; // 1d
-extern double *bndE; // 1d
-extern double *bndS; // 1d
-extern double *bndW; // 1d
-
-// buffers used in boundary exchange
-extern double *buffN;
-extern double *buffE;
-extern double *buffS;
-extern double *buffW;
-
-extern Discretization options;
-extern SubDomain      domain;
-
 // thin wrapper around a pointer that can be accessed as either a 2D or 1D array
 // Field has dimension xdim * ydim in 2D, or length=xdim*ydim in 1D
 class Field {
     public:
+    // default constructor
+    Field()
+    :   ptr_(0),
+        xdim_(0),
+        ydim_(0),
+        own_(false)
+    {};
 
     // constructor
     explicit Field(double* ptr, int xdim, int ydim)
@@ -112,8 +100,24 @@ class Field {
 
     // destructor
     ~Field() {
-        if(own_)
-            delete[] ptr_;
+        free();
+    }
+
+    void init(int xdim, int ydim) {
+        assert(xdim>0 && ydim>0);
+        free();
+        ptr_ = new double[xdim*ydim];
+        xdim_ = xdim;
+        ydim_ = ydim;
+        own_ = true;
+    }
+
+    double* data() {
+        return ptr_;
+    }
+
+    const double* data() const {
+        return ptr_;
     }
 
     // access via (i,j) pair
@@ -147,8 +151,14 @@ class Field {
     }
 
     private:
-    // make default constructor private
-    Field();
+
+    void free() {
+        if(own_ && ptr_)
+            delete[] ptr_;
+        xdim_=0;
+        ydim_=0;
+        own_=false;
+    }
 
     double* ptr_;
     int xdim_;
@@ -156,6 +166,25 @@ class Field {
 
     bool own_; // flag whether we own the memory or not
 };
+
+// fields that hold the solution
+extern Field x_new; // 2d
+extern Field x_old; // 2d
+
+// fields that hold the boundary values
+extern Field bndN; // 1d
+extern Field bndE; // 1d
+extern Field bndS; // 1d
+extern Field bndW; // 1d
+
+// buffers used in boundary exchange
+extern Field buffN;
+extern Field buffE;
+extern Field buffS;
+extern Field buffW;
+
+extern Discretization options;
+extern SubDomain      domain;
 
 } // namespace data
 
