@@ -117,15 +117,15 @@ int main(int argc, char* argv[])
     double* deltax = new double[N];
 
     // set dirichlet boundary conditions to 0 all around
-    std::fill(bndN, bndN+nx, 0.);
-    std::fill(bndS, bndS+nx, 0.);
-    std::fill(bndE, bndE+ny, 0.);
-    std::fill(bndW, bndW+ny, 0.);
+    ss_fill(bndN, 0., nx);
+    ss_fill(bndS, 0., nx);
+    ss_fill(bndE, 0., ny);
+    ss_fill(bndW, 0., ny);
 
     // set the initial condition
     // a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
     // no larger than 1/8 of both xdim and ydim
-    std::fill(x_new, x_new+nx*ny, 0.);
+    ss_fill(x_new, 0., nx*ny);
     double xc = 1.0 / 4.0;
     double yc = (ny - 1) * options.dx / 4;
     double radius = fmin(xc, yc) / 2.0;
