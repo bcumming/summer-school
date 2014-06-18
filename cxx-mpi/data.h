@@ -72,36 +72,19 @@ class Field {
     public:
     // default constructor
     Field()
-    :   ptr_(0),
-        xdim_(0),
-        ydim_(0),
-        own_(false)
+    :   ptr_(0), xdim_(0), ydim_(0)
     {};
 
     // constructor
-    explicit Field(double* ptr, int xdim, int ydim)
-    :   ptr_(ptr),
-        xdim_(xdim),
-        ydim_(ydim),
-        own_(false)
-    {
-        assert(xdim>0 && ydim>0);
-    };
-
-    // constructor
     Field(int xdim, int ydim)
-    :   xdim_(xdim),
-        ydim_(ydim),
-        own_(true)
+    :   xdim_(xdim), ydim_(ydim)
     {
         assert(xdim>0 && ydim>0);
         ptr_ = new double[xdim*ydim];
     };
 
     // destructor
-    ~Field() {
-        free();
-    }
+    ~Field() { free(); }
 
     void init(int xdim, int ydim) {
         assert(xdim>0 && ydim>0);
@@ -109,62 +92,34 @@ class Field {
         ptr_ = new double[xdim*ydim];
         xdim_ = xdim;
         ydim_ = ydim;
-        own_ = true;
     }
 
-    double* data() {
-        return ptr_;
-    }
-
-    const double* data() const {
-        return ptr_;
-    }
+    double*       data()       { return ptr_; }
+    const double* data() const { return ptr_; }
 
     // access via (i,j) pair
-    inline double& operator() (int i, int j) {
-        return ptr_[i+j*xdim_];
-    }
-
-    inline double const& operator() (int i, int j) const  {
-        return ptr_[i+j*xdim_];
-    }
+    inline double&       operator() (int i, int j)        { return ptr_[i+j*xdim_]; }
+    inline double const& operator() (int i, int j) const  { return ptr_[i+j*xdim_]; }
 
     // access as a 1D field
-    inline double & operator[] (int i) {
-        return ptr_[i];
-    }
+    inline double      & operator[] (int i)       { return ptr_[i]; }
+    inline double const& operator[] (int i) const { return ptr_[i]; }
 
-    inline double const& operator[] (int i) const {
-        return ptr_[i];
-    }
-
-    int xdim() const {
-        return xdim_;
-    }
-
-    int ydim() const {
-        return ydim_;
-    }
-
-    int length() const {
-        return xdim_*ydim_;
-    }
+    int xdim()   const { return xdim_; }
+    int ydim()   const { return ydim_; }
+    int length() const { return xdim_*ydim_; }
 
     private:
 
     void free() {
-        if(own_ && ptr_)
-            delete[] ptr_;
-        xdim_=0;
-        ydim_=0;
-        own_=false;
+        if(ptr_) delete[] ptr_;
+        ptr_=0;
+        xdim_ = ydim_ = 0;
     }
 
     double* ptr_;
     int xdim_;
     int ydim_;
-
-    bool own_; // flag whether we own the memory or not
 };
 
 // fields that hold the solution
