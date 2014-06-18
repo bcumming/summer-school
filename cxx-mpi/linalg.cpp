@@ -1,13 +1,16 @@
 // linear algebra subroutines
 // Ben Cumming @ CSCS
 
+#include <iostream>
+
+#include <cmath>
+#include <cstdio>
+
+#include <mpi.h>
+
 #include "linalg.h"
 #include "operators.h"
 #include "stats.h"
-
-#include <math.h>
-#include <stdio.h>
-
 
 namespace linalg {
 
@@ -50,13 +53,14 @@ void cg_init(const int N)
 double ss_dot(const double* x, const double* y, const int N)
 {
     double result = 0;
+    double result_global = 0;
+
     for (int i = 0; i < N; i++)
         result += x[i] * y[i];
 
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
-    return result;
+    MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    return result_global;
 }
 
 // computes the 2-norm of x
@@ -64,15 +68,14 @@ double ss_dot(const double* x, const double* y, const int N)
 double ss_norm2(const double* x, const int N)
 {
     double result = 0;
+    double result_global = 0;
+
     for (int i = 0; i < N; i++)
         result += x[i] * x[i];
 
-    result = sqrt(result);
+    MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
-    return result;
+    return sqrt(result_global);
 }
 
 // sets entries in a vector to value
@@ -95,9 +98,6 @@ void ss_axpy(double* y, const double alpha, const double* x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] += alpha * x[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
 }
 
 // computes y = x + alpha*(l-r)
@@ -108,9 +108,6 @@ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
 {
     for (int i = 0; i < N; i++)
         y[i] = x[i] + alpha * (l[i] - r[i]);
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 3 * N;
 }
 
 // computes y = alpha*(l-r)
@@ -121,9 +118,6 @@ void ss_scaled_diff(double* y, const double alpha,
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * (l[i] - r[i]);
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
 }
 
 // computes y := alpha*x
@@ -133,9 +127,6 @@ void ss_scale(double* y, const double alpha, double* x, const int N)
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + N;
 }
 
 // computes linear combination of two vectors y := alpha*x + beta*z
@@ -146,9 +137,6 @@ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
 {
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i] + beta * z[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 3 * N;
 }
 
 // copy one vector into another y := x
@@ -168,16 +156,19 @@ void ss_copy(double* y, const double* x, const int N)
 // ON EXIT  contains the solution
 void ss_cg(double* x, const double* b, const int maxiters, const double tol, bool& success)
 {
-    data::Discretization& options = data::options;
-
     // this is the dimension of the linear system that we are to solve
-    int N = options.N;
+    int N = data::domain.N;
+    int nx = data::domain.nx;
+    int ny = data::domain.ny;
 
     if (!cg_initialized)
-    {
-        printf("INITIALIZING CG STATE\n");
         cg_init(N);
-    }
+
+    // create 2D wrappers for the vectors that will be passed to the diffusion operator
+    data::Field x_twod(x, nx, ny);
+    data::Field v_twod(v, nx, ny);
+    data::Field Fx_twod(Fx, nx, ny);
+    data::Field Fxold_twod(Fxold, nx, ny);
 
     // epslion value use for matrix-vector approximation
     double eps     = 1.e-8;
@@ -193,13 +184,15 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
     //     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
     // we compute Fxold at startup
     // we have to keep x so that we can compute the F(x+exps*v)
-    diffusion(x, Fxold);
+    //diffusion(x, Fxold);
+    diffusion(x_twod, Fxold_twod);
 
     // v = x + epsilon*x
     ss_scale(v, 1.0 + eps, x, N);
 
     // Fx = F(v)
-    diffusion(v, Fx);
+    //diffusion(v, Fx);
+    diffusion(v_twod, Fx_twod);
 
     // r = b - A*x
     // where A*x = (Fx-Fxold)/eps
@@ -220,11 +213,11 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
     }
 
     int iter;
-    for (iter = 1; iter <= maxiters; iter++)
-    {
+    for(iter=0; iter<maxiters; iter++) {
         // Ap = A*p
         ss_lcomb(v, 1.0, xold, eps, p, N);
-        diffusion(v, Fx);
+        //diffusion(v, Fx);
+        diffusion(v_twod, Fx_twod);
         ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
 
         // alpha = rold / p'*Ap
@@ -240,8 +233,7 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
         rnew = ss_dot(r, r, N);
 
         // test for convergence
-        if (sqrt(rnew) < tol)
-        {
+        if (sqrt(rnew) < tol) {
             success = true;
             break;
         }
@@ -251,13 +243,10 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, boo
 
         rold = rnew;
     }
-    stats::iters_cg += iter;
+    stats::iters_cg += iter + 1;
 
     if (!success)
-    {
-        fprintf(stderr, "ERROR: CG failed to converge after %d iterations\n", maxiters);
-        fprintf(stderr, "       achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
-    }
+        std::cerr << "ERROR: CG failed to converge" << std::endl;
 }
 
 } // namespace linalg

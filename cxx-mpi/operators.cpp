@@ -6,40 +6,111 @@
 
 // Description: Contains simple operators which can be used on 3d-meshes
 
+#include <mpi.h>
+
 #include "data.h"
 #include "operators.h"
 #include "stats.h"
 
 namespace operators {
 
-// macros for easy indexing
-// not the most ideal solution, but simple
-#define S(I, J) sp[I + nx*(J)]
-#define U(I, J) up[I + nx*(J)]
-#define X(I, J) data::x_old[I + nx*(J)]
-
-void diffusion(const double* up, double* sp)
+//void diffusion(const double* up, double* sp)
+void diffusion(const data::Field &U, data::Field &S)
 {
-    data::Discretization& options = data::options;
+    using data::options;
+    using data::domain;
 
-    double *bndE = data::bndE;
-    double *bndW = data::bndW;
-    double *bndN = data::bndN;
-    double *bndS = data::bndS;
+    using data::bndE;
+    using data::bndW;
+    using data::bndN;
+    using data::bndS;
+
+    using data::buffE;
+    using data::buffW;
+    using data::buffN;
+    using data::buffS;
 
     double dxs = 1000. * (options.dx * options.dx);
     double alpha = options.alpha;
-    int nx = options.nx;
-    int ny = options.ny;
+    int nx = domain.nx;
+    int ny = domain.ny;
     int iend  = nx - 1;
     int jend  = ny - 1;
 
+    MPI_Status statuses[8];
+    int requests[8];
+    int num_requests = 0;
+
+    const data::Field X(data::x_old, nx, ny);
+
+    if(domain.neighbour_north>=0) {
+        // set tag to be the sender's rank
+        // post receive
+        MPI_Irecv(bndN, nx, MPI_DOUBLE, domain.neighbour_north, domain.neighbour_north,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+
+        // pack north buffer
+        for(int i=0; i<nx; i++)
+            buffN[i] = U(i,ny-1);
+
+        // post send
+        MPI_Isend(buffN, nx, MPI_DOUBLE, domain.neighbour_north, domain.rank,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+    }
+    if(domain.neighbour_south>=0) {
+        // set tag to be the sender's rank
+        // post receive
+        MPI_Irecv(bndS, nx, MPI_DOUBLE, domain.neighbour_south, domain.neighbour_south,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+
+        // pack south buffer
+        for(int i=0; i<nx; i++)
+            buffS[i] = U(i,0);
+
+        // post send
+        MPI_Isend(buffS, nx, MPI_DOUBLE, domain.neighbour_south, domain.rank,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+    }
+    if(domain.neighbour_east>=0) {
+        // set tag to be the sender's rank
+        // post receive
+        MPI_Irecv(bndE, ny, MPI_DOUBLE, domain.neighbour_east, domain.neighbour_east,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+
+        // pack north buffer
+        for(int j=0; j<ny; j++)
+            buffE[j] = U(nx-1,j);
+
+        // post send
+        MPI_Isend(buffE, ny, MPI_DOUBLE, domain.neighbour_east, domain.rank,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+    }
+    if(domain.neighbour_west>=0) {
+        // set tag to be the sender's rank
+        // post receive
+        MPI_Irecv(bndW, ny, MPI_DOUBLE, domain.neighbour_west, domain.neighbour_west,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+
+        // pack north buffer
+        for(int j=0; j<ny; j++)
+            buffW[j] = U(0,j);
+
+        // post send
+        MPI_Isend(buffW, ny, MPI_DOUBLE, domain.neighbour_west, domain.rank,
+            MPI_COMM_WORLD, requests+num_requests);
+        num_requests++;
+    }
 
     // the interior grid points
-    for (int j = 1; j < jend; j++)
-    {
-        for (int i = 1; i < iend; i++)
-        {
+    for (int j=1; j < jend; j++) {
+        for (int i=1; i < iend; i++) {
             S(i,j) = -(4. + alpha) * U(i,j)               // central point
                                     + U(i-1,j) + U(i+1,j) // east and west
                                     + U(i,j-1) + U(i,j+1) // north and south
@@ -48,10 +119,12 @@ void diffusion(const double* up, double* sp)
         }
     }
 
+    // wait on the receives
+    MPI_Waitall(num_requests, requests, statuses);
+
     // the east boundary
     {
-        int i = options.nx - 1;
-        #pragma ivdep
+        int i = nx - 1;
         for (int j = 1; j < jend; j++)
         {
             S(i,j) = -(4. + alpha) * U(i,j)
@@ -75,7 +148,7 @@ void diffusion(const double* up, double* sp)
 
     // the north boundary (plus NE and NW corners)
     {
-        int j = options.ny - 1;
+        int j = ny - 1;
 
         {
             int i = 0; // NW corner
@@ -95,7 +168,7 @@ void diffusion(const double* up, double* sp)
         }
 
         {
-            int i = options.nx; // NE corner
+            int i = nx; // NE corner
             S(i,j) = -(4. + alpha) * U(i,j)
                         + U(i-1,j) + U(i,j-1)
                         + alpha * X(i,j) + bndE[j] + bndN[i]
@@ -125,7 +198,7 @@ void diffusion(const double* up, double* sp)
         }
 
         {
-            int i = options.nx - 1; // SE corner
+            int i = nx - 1; // SE corner
             S(i,j) = -(4. + alpha) * U(i,j)
                         + U(i-1,j) + U(i,j+1)
                         + alpha * X(i,j) + bndE[j] + bndS[i]
@@ -136,8 +209,8 @@ void diffusion(const double* up, double* sp)
     // Accumulate the flop counts
     // 8 ops total per point
     stats::flops_diff +=
-        + 12 * (options.nx - 2) * (options.ny - 2) // interior points
-        + 11 * (options.nx - 2  +  options.ny - 2) // NESW boundary points
+        + 12 * (nx - 2) * (ny - 2) // interior points
+        + 11 * (nx - 2  +  ny - 2) // NESW boundary points
         + 11 * 4;                                  // corner points
 }
 

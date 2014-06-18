@@ -1,17 +1,109 @@
+#include <iostream>
+
+#include <cmath>
+
+#include <mpi.h>
+
 #include "data.h"
 
-#include <stdio.h>
 
 namespace data{
-    // fields that hold the solution
-    double *x_new = NULL;
-    double *x_old = NULL;
 
-    // fields that hold the boundary points
-    double *bndN = NULL;
-    double *bndE = NULL;
-    double *bndS = NULL;
-    double *bndW = NULL;
+// fields that hold the solution
+double *x_new = NULL;
+double *x_old = NULL;
 
-    Discretization options;
+// fields that hold the boundary points
+double *bndN = NULL;
+double *bndE = NULL;
+double *bndS = NULL;
+double *bndW = NULL;
+
+// buffers used during boundary halo communication
+double *buffN = NULL;
+double *buffE = NULL;
+double *buffS = NULL;
+double *buffW = NULL;
+
+Discretization options;
+SubDomain      domain;
+
+void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
+{
+    // determine the number of subdomains in the x and y dimensions
+    ndomx = sqrt(double(mpi_size));
+    while( mpi_size%ndomx )
+        ndomx--;
+    ndomy = mpi_size / ndomx;
+
+    // compute this sub-domain index
+    // work backwards from: mpi_rank = (domx-1) + (domy-1)*ndomx
+    domx = mpi_rank % ndomx + 1;
+    domy = (mpi_rank-domx+1) / ndomx + 1;
+
+    nx = discretization.nx / ndomx;
+    ny = discretization.ny / ndomy;
+    // TODO: the startx and endx values might have to be adjusted by 1
+    startx = (domx-1)*nx+1;
+    starty = (domy-1)*ny+1;
+
+    // adjust for grid dimensions that do not divided evenly between the
+    // sub-domains
+    if( domx == ndomx )
+        nx = discretization.nx - startx + 1;
+    if( domy == ndomy )
+        ny = discretization.ny - starty + 1;
+
+    endx = startx + nx -1;
+    endy = starty + ny -1;
+
+    // get total number of grid points in this sub-domain
+    N = nx*ny;
+
+    on_boundary_west  = false;
+    on_boundary_east  = false;
+    on_boundary_north = false;
+    on_boundary_south = false;
+
+    neighbour_east  = mpi_rank+1;
+    neighbour_west  = mpi_rank-1;
+    neighbour_north = mpi_rank+ndomx;
+    neighbour_south = mpi_rank-ndomx;
+
+    if (domx == 1) {
+        on_boundary_west = true;
+        neighbour_west = -1;
+    }
+    if (domx == ndomx) {
+        on_boundary_east = true;
+        neighbour_east = -1;
+    }
+    if (domy == 1) {
+        on_boundary_south = true;
+        neighbour_south = -1;
+    }
+    if (domy == ndomy) {
+        on_boundary_north = true;
+        neighbour_north = -1;
+    }
+
+    rank = mpi_rank;
+    size = mpi_size;
 }
+
+// print domain decomposition information to stdout
+void SubDomain::print() {
+    for(int i=0; i<size; i++) {
+        if(rank == i) {
+            std::cout << "rank " << rank << "/" << size
+                      << " : (" << domx << "," << domy << ")"
+                      << " neigh N:S " << neighbour_north << ":" << neighbour_south
+                      << " neigh E:W " << neighbour_east << ":" << neighbour_west
+                      << " local dims " << nx << " x " << ny
+                      << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+}
+
+} // namespace data
