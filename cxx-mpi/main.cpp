@@ -265,18 +265,6 @@ int main(int argc, char* argv[])
                   << std::endl;
     }
 
-    // deallocate global fields
-    //delete[] x_new;
-    //delete[] x_old;
-    //delete[] bndN;
-    //delete[] bndS;
-    //delete[] bndE;
-    //delete[] bndW;
-    //delete[] buffN;
-    //delete[] buffS;
-    //delete[] buffE;
-    //delete[] buffW;
-
     if(domain.rank==0)
         std::cout << "Goodbye!" << std::endl;
 
