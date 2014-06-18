@@ -10,20 +10,20 @@
 namespace data{
 
 // fields that hold the solution
-double *x_new = NULL;
-double *x_old = NULL;
+Field x_new;
+Field x_old;
 
 // fields that hold the boundary points
-double *bndN = NULL;
-double *bndE = NULL;
-double *bndS = NULL;
-double *bndW = NULL;
+Field bndN;
+Field bndE;
+Field bndS;
+Field bndW;
 
 // buffers used during boundary halo communication
-double *buffN = NULL;
-double *buffE = NULL;
-double *buffS = NULL;
-double *buffW = NULL;
+Field buffN;
+Field buffE;
+Field buffS;
+Field buffW;
 
 Discretization options;
 SubDomain      domain;
