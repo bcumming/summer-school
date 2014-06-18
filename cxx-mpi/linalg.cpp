@@ -55,7 +55,7 @@ double ss_dot(const double* x, const double* y, const int N)
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 2 * N;
-
+    
     return result;
 }
 
@@ -71,7 +71,7 @@ double ss_norm2(const double* x, const int N)
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 2 * N;
-
+    
     return result;
 }
 
@@ -168,7 +168,7 @@ void ss_copy(double* y, const double* x, const int N)
 // ON EXIT  contains the solution
 void ss_cg(double* x, const double* b, const int maxiters, const double tol, bool& success)
 {
-    using data::options;
+    data::Discretization& options = data::options;
 
     // this is the dimension of the linear system that we are to solve
     int N = options.N;

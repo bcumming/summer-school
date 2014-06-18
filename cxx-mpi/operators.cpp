@@ -20,11 +20,12 @@ namespace operators {
 
 void diffusion(const double* up, double* sp)
 {
-    using data::options;
-    using data::bndE;
-    using data::bndW;
-    using data::bndN;
-    using data::bndS;
+    data::Discretization& options = data::options;
+
+    double *bndE = data::bndE;
+    double *bndW = data::bndW;
+    double *bndN = data::bndN;
+    double *bndS = data::bndS;
 
     double dxs = 1000. * (options.dx * options.dx);
     double alpha = options.alpha;
