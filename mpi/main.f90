@@ -390,8 +390,6 @@ subroutine initialize_mpi(options, domain)
     domain%domx = domx
     domain%domy = domy
 
-    domain%domy = domy
-
     do i=0,mpi_size-1
         if( mpi_rank == i .and. verbose_output ) then
             write (*,'(A,I2,A,I2,A,I2,A,I2,A,A,I2,A,I2,A,A,I3,I3,A,I3,I3,A,I5,A,I5)') 'rank ', mpi_rank, ' /', mpi_size, &
