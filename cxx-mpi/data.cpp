@@ -3,9 +3,9 @@
 #include <cmath>
 
 #include <mpi.h>
+#include <omp.h>
 
 #include "data.h"
-
 
 namespace data{
 
@@ -104,6 +104,9 @@ void SubDomain::print() {
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
+    double time = omp_get_wtime();
+    // add artificial pause so that output doesn't pollute later output
+    while(omp_get_wtime()-time < 1e-1);
 }
 
 } // namespace data

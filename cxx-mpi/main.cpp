@@ -9,6 +9,7 @@
 // Syntax: ./main nx ny nt t
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 
 #include <cstdio>
 #include <cmath>
@@ -108,9 +109,9 @@ int main(int argc, char* argv[])
     int nx = domain.nx;
     int ny = domain.ny;
     int N  = domain.N;
-
     int nt  = options.nt;
 
+    MPI_Barrier(MPI_COMM_WORLD);
     if( domain.rank == 0 ) {
         std::cout << "========================================================================" << std::endl;
         std::cout << "                      Welcome to mini-stencil!" << std::endl;
@@ -146,16 +147,16 @@ int main(int argc, char* argv[])
     // no larger than 1/8 of both xdim and ydim
     ss_fill(x_new, 0., nx*ny);
     double xc = 1.0 / 4.0;
-    double yc = (ny - 1) * options.dx / 4;
-    double radius = fmin(xc, yc) / 2.0;
-    for (int j = 0; j < ny; j++)
+    double yc = (options.ny - 1) * options.dx / 4;
+    double radius = std::min(xc, yc) / 2.0;
+    for (int j = domain.starty-1; j < domain.endy; j++)
     {
         double y = (j - 1) * options.dx;
-        for (int i = 0; i < nx; i++)
+        for (int i = domain.startx-1; i < domain.endx; i++)
         {
             double x = (i - 1) * options.dx;
             if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-                x_new(i,j) = 0.1;
+                x_new(i-domain.startx+1, j-domain.starty+1) = 0.1;
         }
     }
 
@@ -230,27 +231,58 @@ int main(int argc, char* argv[])
     // write final solution to BOV file for visualization
     ////////////////////////////////////////////////////////////////////
 
-    if( domain.rank==0 ) {
-        // binary data
-        {
-            FILE* output = fopen("output.bin", "w");
-            fwrite(x_new.data(), sizeof(double), nx * ny, output);
-            fclose(output);
-        }
+    // binary data
+    {
+        MPI_Offset disp = 0;
+        MPI_File filehandle;
+        MPI_Datatype filetype;
+        std::string fname("output.bin");
 
-        // metadata
-        {
-            FILE* output = fopen("output.bov", "wb");
-            fprintf(output, "TIME: 0.0\n");
-            fprintf(output, "DATA_FILE: output.bin\n");
-            fprintf(output, "DATA_SIZE: %d, %d, 1\n", nx, ny);
-            fprintf(output, "DATA_FORMAT: DOUBLE\n");
-            fprintf(output, "VARIABLE: phi\n");
-            fprintf(output, "DATA_ENDIAN: LITTLE\n");
-            fprintf(output, "CENTERING: nodal\n");
-            fprintf(output, "BRICK_SIZE: 1.0 %f 1.0\n", (ny - 1) * options.dx);
-            fclose(output);
-        }
+        //int MPI_File_open(MPI_Comm comm, char *filename, int amode, MPI_Info info, MPI_File *fh)
+        int result =
+            MPI_File_open(
+                MPI_COMM_WORLD,
+                fname.c_str(),
+                MPI_MODE_CREATE | MPI_MODE_WRONLY,
+                MPI_INFO_NULL,
+                &filehandle
+            );
+        assert(result==MPI_SUCCESS);
+
+        int ustart[]  = {domain.startx-1, domain.starty-1};
+        int ucount[]  = {domain.nx, domain.ny};
+        int dimuids[] = {options.nx, options.ny};
+
+        result = MPI_Type_create_subarray(2, dimuids, ucount, ustart, MPI_ORDER_FORTRAN, MPI_DOUBLE, &filetype);
+        assert(result==MPI_SUCCESS);
+
+        result = MPI_Type_commit(&filetype);
+        assert(result==MPI_SUCCESS);
+
+        result = MPI_File_set_view(filehandle, disp, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+        assert(result==MPI_SUCCESS);
+
+        result = MPI_File_write_all(filehandle, x_new.data(), N, MPI_DOUBLE, MPI_STATUS_IGNORE);
+        assert(result==MPI_SUCCESS);
+
+        result = MPI_Type_free(&filetype);
+        assert(result==MPI_SUCCESS);
+
+        result = MPI_File_close(&filehandle);
+        assert(result==MPI_SUCCESS);
+    }
+
+    // metadata
+    if( domain.rank==0 ) {
+        std::ofstream fid("output.bov");
+        fid << "TIME: 0.0" << std::endl;
+        fid << "DATA_FILE: output.bin" << std::endl;
+        fid << "DATA_SIZE: " << options.nx << ", " << options.ny << ", 1" << std::endl;;
+        fid << "DATA_FORMAT: DOUBLE" << std::endl;
+        fid << "VARIABLE: phi" << std::endl;
+        fid << "DATA_ENDIAN: LITTLE" << std::endl;
+        fid << "CENTERING: nodal" << std::endl;
+        fid << "BRICK_SIZE: 1.0 " << (options.ny-1)*options.dx << " 1.0" << std::endl;
     }
 
     // print table sumarizing results

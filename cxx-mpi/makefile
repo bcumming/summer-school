@@ -1,6 +1,7 @@
 CXX=CC
 ifeq ($(PE_ENV),GNU)
     # the gnu compiler requires that we specifically enable OpenMP
+	#CXXFLAGS=-O0 -g -fopenmp -DDEBUG
 	CXXFLAGS=-O3 -fopenmp
 endif
 ifeq ($(PE_ENV),CRAY)
@@ -15,16 +16,16 @@ OBJ     = stats.o   data.o   operators.o   linalg.o
 
 all: main
 
-stats.o: stats.cpp stats.h
+stats.o: stats.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c stats.cpp -o stats.o
 
-data.o: data.cpp data.h
+data.o: data.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c data.cpp -o data.o
 
-operators.o: operators.cpp operators.h
+operators.o: operators.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c operators.cpp -o operators.o
 
-linalg.o: linalg.cpp linalg.h
+linalg.o: linalg.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c linalg.cpp -o linalg.o
 
 main: $(OBJ) main.cpp $(HEADERS)

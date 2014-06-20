@@ -79,17 +79,26 @@ class Field {
     Field(int xdim, int ydim)
     :   xdim_(xdim), ydim_(ydim)
     {
+        #ifdef DEBUG
         assert(xdim>0 && ydim>0);
+        #endif
         ptr_ = new double[xdim*ydim];
     };
 
     // destructor
-    ~Field() { free(); }
+    ~Field() {
+        free();
+    }
 
     void init(int xdim, int ydim) {
+        #ifdef DEBUG
         assert(xdim>0 && ydim>0);
+        #endif
         free();
         ptr_ = new double[xdim*ydim];
+        #ifdef DEBUG
+        assert(xdim>0 && ydim>0);
+        #endif
         xdim_ = xdim;
         ydim_ = ydim;
     }
@@ -98,12 +107,32 @@ class Field {
     const double* data() const { return ptr_; }
 
     // access via (i,j) pair
-    inline double&       operator() (int i, int j)        { return ptr_[i+j*xdim_]; }
-    inline double const& operator() (int i, int j) const  { return ptr_[i+j*xdim_]; }
+    inline double&       operator() (int i, int j)        {
+        #ifdef DEBUG
+        assert(i>=0 && i<xdim_ && j>=0 && j<ydim_);
+        #endif
+        return ptr_[i+j*xdim_];
+    }
+    inline double const& operator() (int i, int j) const  {
+        #ifdef DEBUG
+        assert(i>=0 && i<xdim_ && j>=0 && j<ydim_);
+        #endif
+        return ptr_[i+j*xdim_];
+    }
 
     // access as a 1D field
-    inline double      & operator[] (int i)       { return ptr_[i]; }
-    inline double const& operator[] (int i) const { return ptr_[i]; }
+    inline double      & operator[] (int i) {
+        #ifdef DEBUG
+        assert(i>=0 && i<xdim_*ydim_);
+        #endif
+        return ptr_[i];
+    }
+    inline double const& operator[] (int i) const {
+        #ifdef DEBUG
+        assert(i>=0 && i<xdim_*ydim_);
+        #endif
+        return ptr_[i];
+    }
 
     int xdim()   const { return xdim_; }
     int ydim()   const { return ydim_; }
@@ -113,8 +142,7 @@ class Field {
 
     void free() {
         if(ptr_) delete[] ptr_;
-        ptr_=0;
-        xdim_ = ydim_ = 0;
+        ptr_ = 0;
     }
 
     double* ptr_;

@@ -167,7 +167,7 @@ void diffusion(const data::Field &U, data::Field &S)
         }
 
         {
-            int i = nx; // NE corner
+            int i = nx-1; // NE corner
             S(i,j) = -(4. + alpha) * U(i,j)
                         + U(i-1,j) + U(i,j-1)
                         + alpha * x_old(i,j) + bndE[j] + bndN[i]
