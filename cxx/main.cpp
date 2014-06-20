@@ -8,14 +8,16 @@
 
 // Syntax: ./main nx ny nt t
 
-#include <omp.h>
-#include <stdio.h>
+#include <algorithm>
+#include <fstream>
+#include <iostream>
 
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 
-#include <algorithm>
+#include <omp.h>
+#include <stdio.h>
 
 #include "data.h"
 #include "linalg.h"
@@ -65,7 +67,7 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
         fprintf(stderr, "nt must be positive integer\n");
         exit(-1);
     }
-    
+
     // read total time
     double t = atof(argv[4]);
     if (t < 0)
@@ -79,11 +81,11 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
 
     // compute timestep size
     options.dt = t / options.nt;
-    
+
     // compute the distance between grid points
     // assume that x dimension has length 1.0
     options.dx = 1. / (options.nx - 1);
-    
+
     // set alpha, assume diffusion coefficient D is 1
     options.alpha = (options.dx * options.dx) / (1. * options.dt);
 }
@@ -99,22 +101,24 @@ int main(int argc, char* argv[])
     int N  = options.N;
     int nt = options.nt;
 
-    printf("========================================================================\n");
-    printf("                      Welcome to mini-stencil!\n");
-    printf("mesh :: %d * %d, dx = %f\n", nx, ny, options.dx);
-    printf("time :: %d, time steps from 0 .. %f\n", nt, options.nt * options.dt);
-    printf("========================================================================\n");
+    std::cout << "========================================================================" << std::endl;
+    std::cout << "                      Welcome to mini-stencil!" << std::endl;
+    std::cout << "version :: C++ serial" << std::endl;
+    std::cout << "mesh    :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
+    std::cout << "time    :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
+    std::cout << "========================================================================" << std::endl;
 
     // allocate global fields
-    x_new = new double[nx * ny];
-    x_old = new double[nx * ny];
-    bndN = new double[nx];
-    bndS = new double[nx];
-    bndE = new double[ny];
-    bndW = new double[ny];
+    // allocate global fields
+    x_new.init(nx,ny);
+    x_old.init(nx,ny);
+    bndN.init(nx,1);
+    bndS.init(nx,1);
+    bndE.init(ny,1);
+    bndW.init(ny,1);
 
-    double* b = new double[N];
-    double* deltax = new double[N];
+    Field b(nx,ny);
+    Field deltax(nx,ny);
 
     // set dirichlet boundary conditions to 0 all around
     ss_fill(bndN, 0., nx);
@@ -190,11 +194,15 @@ int main(int argc, char* argv[])
 
         // output some statistics
         //if (converged && verbose_output)
-        if (converged && verbose_output)
-            printf("step %d required %d iterations for residual %E\n", timestep, it, residual);
-        if (!converged)
-        {
-            fprintf(stderr, "step %d ERROR : nonlinear iterations failed to converge\n", timestep);
+        if (converged && verbose_output) {
+            std::cout << "step " << timestep
+                      << " required " << it
+                      << " iterations for residual " << residual
+                      << std::endl;
+        }
+        if (!converged) {
+            std::cerr << "step " << timestep
+                      << " ERROR : nonlinear iterations failed to converge" << std::endl;;
             break;
         }
     }
@@ -210,42 +218,31 @@ int main(int argc, char* argv[])
     // binary data
     {
         FILE* output = fopen("output.bin", "w");
-        fwrite(x_new, sizeof(double), nx * ny, output);
+        fwrite(x_new.data(), sizeof(double), nx * ny, output);
         fclose(output);
     }
 
-    // metadata
-    {
-        FILE* output = fopen("output.bov", "wb");
-        fprintf(output, "TIME: 0.0\n");
-        fprintf(output, "DATA_FILE: output.bin\n");
-        fprintf(output, "DATA_SIZE: %d, %d, 1\n", nx, ny);
-        fprintf(output, "DATA_FORMAT: DOUBLE\n");
-        fprintf(output, "VARIABLE: phi\n");
-        fprintf(output, "DATA_ENDIAN: LITTLE\n");
-        fprintf(output, "CENTERING: nodal\n");
-        fprintf(output, "BRICK_SIZE: 1.0 %f 1.0\n", (ny - 1) * options.dx);
-        fclose(output);
-    }
+    std::ofstream fid("output.bov");
+    fid << "TIME: 0.0" << std::endl;
+    fid << "DATA_FILE: output.bin" << std::endl;
+    fid << "DATA_SIZE: " << options.nx << ", " << options.ny << ", 1" << std::endl;;
+    fid << "DATA_FORMAT: DOUBLE" << std::endl;
+    fid << "VARIABLE: phi" << std::endl;
+    fid << "DATA_ENDIAN: LITTLE" << std::endl;
+    fid << "CENTERING: nodal" << std::endl;
+    fid << "BRICK_SIZE: 1.0 " << (options.ny-1)*options.dx << " 1.0" << std::endl;
 
     // print table sumarizing results
-    printf("--------------------------------------------------------------------------------\n");
-    printf("simulation took %f seconds\n", timespent);
-    printf("%d conjugate gradient iterations, at rate of %8.1f iters/second\n",
-            int(iters_cg),
-            float(iters_newton/timespent));
-    printf("%d newton iterations\n", int(iters_newton));
-    printf("--------------------------------------------------------------------------------\n");
+    std::cout << "--------------------------------------------------------------------------------"
+              << std::endl;
+    std::cout << "simulation took " << timespent << " seconds" << std::endl;
+    std::cout << int(iters_cg) << " conjugate gradient iterations, at rate of "
+              << float(iters_newton/timespent) << " iters/second" << std::endl;
+    std::cout << iters_newton << " newton iterations" << std::endl;
+    std::cout << "--------------------------------------------------------------------------------"
+              << std::endl;
 
-    // deallocate global fields
-    delete[] x_new;
-    delete[] x_old;
-    delete[] bndN;
-    delete[] bndS;
-    delete[] bndE;
-    delete[] bndW;
-
-    printf("Goodbye!\n");
+    std::cout << "Goodbye!" << std::endl;
 
     return 0;
 }

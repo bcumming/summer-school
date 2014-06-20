@@ -111,7 +111,6 @@ int main(int argc, char* argv[])
     int N  = domain.N;
     int nt  = options.nt;
 
-    MPI_Barrier(MPI_COMM_WORLD);
     if( domain.rank == 0 ) {
         std::cout << "========================================================================" << std::endl;
         std::cout << "                      Welcome to mini-stencil!" << std::endl;

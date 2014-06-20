@@ -3,15 +3,15 @@
 #include <stdio.h>
 
 namespace data{
-    // fields that hold the solution
-    double *x_new = NULL;
-    double *x_old = NULL;
+// fields that hold the solution
+Field x_new;
+Field x_old;
 
-    // fields that hold the boundary points
-    double *bndN = NULL;
-    double *bndE = NULL;
-    double *bndS = NULL;
-    double *bndW = NULL;
+// fields that hold the boundary points
+Field bndN;
+Field bndE;
+Field bndS;
+Field bndW;
 
-    Discretization options;
+Discretization options;
 }
