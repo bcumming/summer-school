@@ -94,7 +94,7 @@ void diffusion(const double* up, double* sp)
         }
 
         {
-            int i = options.nx; // NE corner
+            int i = options.nx - 1; // NE corner
             S(i,j) = -(4. + alpha) * U(i,j)
                         + U(i-1,j) + U(i,j-1)
                         + alpha * X(i,j) + bndE[j] + bndN[i]
