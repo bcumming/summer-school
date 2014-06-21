@@ -182,6 +182,15 @@ int main(int argc, char* argv[])
 
             // update solution
             ss_axpy(x_new, -1.0, deltax, N);
+
+            // print control sum of x_new
+            if (timestep % 50 == 0)
+            {
+                double sum = 0.0;
+                for (int i = 0; i < N; i++)
+                    sum += x_new [i];
+                printf("sum = %f\n", sum);
+            }
         }
         iters_newton += it;
 
