@@ -14,11 +14,23 @@ struct discretization_t
 	double alpha; // dx^2/(D*dt)
 };
 
-// fields that hold the solution
-extern double *x_new, *x_old; // 2d
-extern double *bndN, *bndE, *bndS, *bndW; // 1d
+namespace cpu
+{
+	// fields that hold the solution
+	extern double *x_new, *x_old; // 2d
+	extern double *bndN, *bndE, *bndS, *bndW; // 1d
 
-extern struct discretization_t options;
+	extern struct discretization_t options;
+}
+
+namespace gpu
+{
+	// fields that hold the solution
+	extern __device__ double *x_new, *x_old; // 2d
+	extern __device__ double *bndN, *bndE, *bndS, *bndW; // 1d
+
+	extern __constant__ struct discretization_t options;
+}
 
 #endif // DATA_H
 

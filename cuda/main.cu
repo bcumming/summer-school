@@ -85,6 +85,8 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
 
 int main(int argc, char* argv[])
 {
+	using namespace cpu;
+
     // read command line arguments
     readcmdline(&options, argc, argv);
     int nx = options.nx;

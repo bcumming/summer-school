@@ -168,7 +168,7 @@ void ss_copy(double* y, const double* x, const int N)
 // ON EXIT  contains the solution
 void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success)
 {
-    //struct discretization_t* options = data::options;
+    using namespace cpu;
 
     // this is the dimension of the linear system that we are to solve
     int N = options.N;

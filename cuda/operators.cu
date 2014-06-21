@@ -16,14 +16,7 @@
 
 void diffusion(const double* up, double* sp)
 {
-    //struct discretization_t* options = options;
-
-    //double (*u)[options.nx] = (double(*)[options.nx])up;
-    //double (*s)[options.nx] = (double(*)[options.nx])sp;
-
-    //double (*x_old)[options.nx] = (double(*)[options.nx])x_old;
-    //double *bndE = bndE, *bndW = bndW;
-    //double *bndN = bndN, *bndS = bndS;
+    using namespace cpu;
 
     double dxs   = 1000.*options.dx*options.dx;
     double alpha = options.alpha;
