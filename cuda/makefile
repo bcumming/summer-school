@@ -1,33 +1,29 @@
-CXX = gcc
-CXXFLAGS = -O3 -mtune=native -ffast-math -g -fopenmp
-CXXFLAGS = -O3 -fopenmp 
+ARCH = 30
+NVCC = nvcc
+CXXFLAGS = -mtune=native -ffast-math -fopenmp
+NVFLAGS = -g -O3 -arch=sm_$(ARCH) -use_fast_math $(addprefix -Xcompiler=,$(CXXFLAGS))
 
-CXX= cc
-CXXFLAGS=-O3
-CXXFLAGS=-O3 -openmp
-
-SOURCES = stats.c data.c operators.c linalg.c
 HEADERS = stats.h   data.h   operators.h   linalg.h
 OBJ     = stats.o   data.o   operators.o   linalg.o
 
-.SUFFIXES: .c
+.SUFFIXES: .cu
 
 all: main
 
-stats.o: stats.c stats.h
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c stats.c -o stats.o
+stats.o: stats.cu stats.h
+	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
 
-data.o: data.c data.h
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c data.c -o data.o
+data.o: data.cu data.h
+	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
 
-operators.o: operators.c operators.h
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c operators.c -o operators.o
+operators.o: operators.cu operators.h
+	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
 
-linalg.o: linalg.c linalg.h
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c linalg.c -o linalg.o
+linalg.o: linalg.cu linalg.h
+	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
 
-main: $(OBJ) main.c $(HEADERS)
-	$(CXX) $(CXXFLAGS) *.o main.c -o main
+main: main.cu $(OBJ) $(HEADERS)
+	$(NVCC) $(NVFLAGS) *.o $< -o $@
 
 clean:
 	rm -f main
