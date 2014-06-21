@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "check.h"
 #include "data.h"
 #include "linalg.h"
 #include "operators.h"
@@ -85,61 +86,87 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
 
 int main(int argc, char* argv[])
 {
-	using namespace cpu;
-
     // read command line arguments
-    readcmdline(&options, argc, argv);
-    int nx = options.nx;
-    int ny = options.ny;
-    int N  = options.N;
-    int nt = options.nt;
+    readcmdline(&cpu::options, argc, argv);
+    CUDA_ERR_CHECK(cudaMemcpyToSymbol(
+    	gpu::options, &cpu::options, sizeof(struct discretization_t)));
+
+	int nx = cpu::options.nx;
+	int ny = cpu::options.ny;
+	int N  = cpu::options.N;
+	int nt = cpu::options.nt;
 
     printf("========================================================================\n");
     printf("                      Welcome to mini-stencil!\n");
-    printf("mesh :: %d * %d, dx = %f\n", nx, ny, options.dx);
-    printf("time :: %d, time steps from 0 .. %f\n", nt, options.nt * options.dt);
+    printf("mesh :: %d * %d, dx = %f\n", nx, ny, cpu::options.dx);
+    printf("time :: %d, time steps from 0 .. %f\n", nt, nt * cpu::options.dt);
     printf("========================================================================\n");
 
     // allocate global fields
-    x_new = (double*) malloc(sizeof(double)*nx*ny);
-    x_old = (double*) malloc(sizeof(double)*nx*ny); 
-    bndN  = (double*) malloc(sizeof(double)*nx);
-    bndS  = (double*) malloc(sizeof(double)*nx); 
-    bndE  = (double*) malloc(sizeof(double)*ny); 
-    bndW  = (double*) malloc(sizeof(double)*ny); 
-
-    double* b      = (double*) malloc(N*sizeof(double));
-    double* deltax = (double*) malloc(N*sizeof(double));
-
-    // set dirichlet boundary conditions to 0 all around
-    memset(bndN, 0, sizeof(double) * nx);
-    memset(bndS, 0, sizeof(double) * nx);
-    memset(bndE, 0, sizeof(double) * ny);
-    memset(bndW, 0, sizeof(double) * ny);
-
-    // set the initial condition
-    // a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
-    // no larger than 1/8 of both xdim and ydim
-    memset(x_new, 0, sizeof(double) * nx * ny);
-    double xc = 1.0 / 4.0;
-    double yc = (ny - 1) * options.dx / 4;
-    double radius = fmin(xc, yc) / 2.0;
-    int i,j;
-    //
-    for (j = 0; j < ny; j++)
+	double* b      = (double*) malloc(N*sizeof(double));
+	double* deltax = (double*) malloc(N*sizeof(double));
     {
-        double y = (j - 1) * options.dx;
-        for (i = 0; i < nx; i++)
-        {
-            double x = (i - 1) * options.dx;
-            if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-                //((double(*)[nx])x_new)[j][i] = 0.1;
-                x_new[i+j*nx] = 0.1;
-        }
-    }
+    	using namespace cpu;
+    	
+		x_new = (double*) malloc(sizeof(double)*nx*ny);
+		x_old = (double*) malloc(sizeof(double)*nx*ny); 
+		bndN  = (double*) malloc(sizeof(double)*nx);
+		bndS  = (double*) malloc(sizeof(double)*nx); 
+		bndE  = (double*) malloc(sizeof(double)*ny); 
+		bndW  = (double*) malloc(sizeof(double)*ny); 
 
-    double time_in_bcs = 0.0;
-    double time_in_diff = 0.0;
+		// set dirichlet boundary conditions to 0 all around
+		memset(bndN, 0, sizeof(double) * nx);
+		memset(bndS, 0, sizeof(double) * nx);
+		memset(bndE, 0, sizeof(double) * ny);
+		memset(bndW, 0, sizeof(double) * ny);
+
+		// set the initial condition
+		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
+		// no larger than 1/8 of both xdim and ydim
+		memset(x_new, 0, sizeof(double) * nx * ny);
+		double xc = 1.0 / 4.0;
+		double yc = (ny - 1) * options.dx / 4;
+		double radius = fmin(xc, yc) / 2.0;
+		int i,j;
+		//
+		for (j = 0; j < ny; j++)
+		{
+		    double y = (j - 1) * options.dx;
+		    for (i = 0; i < nx; i++)
+		    {
+		        double x = (i - 1) * options.dx;
+		        if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
+		            //((double(*)[nx])x_new)[j][i] = 0.1;
+		            x_new[i+j*nx] = 0.1;
+		    }
+		}
+	}
+
+    {
+    	using namespace gpu;
+    	
+		CUDA_ERR_CHECK(cudaMalloc(&x_new, sizeof(double) * nx * ny));
+		CUDA_ERR_CHECK(cudaMalloc(&x_old, sizeof(double) * nx * ny)); 
+		CUDA_ERR_CHECK(cudaMalloc(&bndN,  sizeof(double) * nx));
+		CUDA_ERR_CHECK(cudaMalloc(&bndS,  sizeof(double) * nx)); 
+		CUDA_ERR_CHECK(cudaMalloc(&bndE,  sizeof(double) * ny)); 
+		CUDA_ERR_CHECK(cudaMalloc(&bndW,  sizeof(double) * ny)); 
+
+		// set dirichlet boundary conditions to 0 all around
+		CUDA_ERR_CHECK(cudaMemcpy(bndN, cpu::bndN, sizeof(double) * nx, cudaMemcpyHostToDevice));
+		CUDA_ERR_CHECK(cudaMemcpy(bndS, cpu::bndS, sizeof(double) * nx, cudaMemcpyHostToDevice));
+		CUDA_ERR_CHECK(cudaMemcpy(bndE, cpu::bndE, sizeof(double) * ny, cudaMemcpyHostToDevice));
+		CUDA_ERR_CHECK(cudaMemcpy(bndW, cpu::bndW, sizeof(double) * ny, cudaMemcpyHostToDevice));
+
+		// set the initial condition
+		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
+		// no larger than 1/8 of both xdim and ydim
+		CUDA_ERR_CHECK(cudaMemcpy(x_new, cpu::x_new, sizeof(double) * nx * ny, cudaMemcpyHostToDevice));
+	}
+	
+	using namespace cpu;
+
     flops_bc = 0;
     flops_diff = 0;
     flops_blas1 = 0;
@@ -151,7 +178,6 @@ int main(int argc, char* argv[])
     double timespent = -omp_get_wtime();
 
     // main timeloop
-    double alpha = options.alpha;
     double tolerance = 1.e-6;
     int timestep;
     for (timestep = 1; timestep <= nt; timestep++)
@@ -239,7 +265,7 @@ int main(int argc, char* argv[])
 
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
-    printf("simulation took %f seconds\n", timespent);
+    printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
     printf("%d conjugate gradient iterations\n", (int)iters_cg);
     printf("%d newton iterations\n", (int)iters_newton);
     printf("--------------------------------------------------------------------------------\n");
