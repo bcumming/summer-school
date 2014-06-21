@@ -40,6 +40,8 @@ void cg_init(const int N)
 // x and y are vectors on length N
 double ss_dot(const double* x, const double* y, const int N)
 {
+	using namespace cpu;
+
     double result = 0;
 	int i;
     for (i = 0; i < N; i++)
@@ -55,6 +57,8 @@ double ss_dot(const double* x, const double* y, const int N)
 // x is a vector on length N
 double ss_norm2(const double* x, const int N)
 {
+	using namespace cpu;
+
     double result = 0;
 	int i;
     for (i = 0; i < N; i++)
@@ -73,6 +77,8 @@ double ss_norm2(const double* x, const int N)
 // value is th
 void ss_fill(double* x, const double value, const int N)
 {
+	using namespace cpu;
+
 	int i;
     for (i = 0; i < N; i++)
         x[i] = value;
@@ -87,6 +93,8 @@ void ss_fill(double* x, const double value, const int N)
 // alpha is a scalar
 void ss_axpy(double* y, const double alpha, const double* x, const int N)
 {
+	using namespace cpu;
+
 	int i;
     for (i = 0; i < N; i++)
         y[i] += alpha * x[i];
@@ -101,6 +109,8 @@ void ss_axpy(double* y, const double alpha, const double* x, const int N)
 void ss_add_scaled_diff(double* y, const double* x, const double alpha,
     const double* l, const double* r, const int N)
 {
+	using namespace cpu;
+
 	int i;
     for (i = 0; i < N; i++)
         y[i] = x[i] + alpha * (l[i] - r[i]);
@@ -115,6 +125,8 @@ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
 void ss_scaled_diff(double* y, const double alpha,
     const double* l, const double* r, const int N)
 {
+	using namespace cpu;
+
 	int i;
     for (i = 0; i < N; i++)
         y[i] = alpha * (l[i] - r[i]);
@@ -128,6 +140,8 @@ void ss_scaled_diff(double* y, const double alpha,
 // y and x are vectors on length n
 void ss_scale(double* y, const double alpha, double* x, const int N)
 {
+	using namespace cpu;
+
 	int i;
     for (i = 0; i < N; i++)
         y[i] = alpha * x[i];
@@ -142,6 +156,8 @@ void ss_scale(double* y, const double alpha, double* x, const int N)
 void ss_lcomb(double* y, const double alpha, double* x, const double beta,
     const double* z, const int N)
 {
+	using namespace cpu;
+
 	int i;
     for (i = 0; i < N; i++)
         y[i] = alpha * x[i] + beta * z[i];

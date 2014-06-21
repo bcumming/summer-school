@@ -145,24 +145,22 @@ int main(int argc, char* argv[])
 
     {
     	using namespace gpu;
+   
+		#define cudaMallocDevice(dst, size) { \
+			double* memPtr = NULL; \
+			CUDA_ERR_CHECK(cudaMalloc(&memPtr, size)); \
+			double* ptrPtr; \
+			CUDA_ERR_CHECK(cudaGetSymbolAddress((void**)&ptrPtr, dst)); \
+			CUDA_ERR_CHECK(cudaMemcpy(ptrPtr, &memPtr, sizeof(double*), cudaMemcpyHostToDevice)); \
+			CUDA_ERR_CHECK(cudaMemcpy(memPtr, cpu::dst, size, cudaMemcpyHostToDevice)); \
+		}
     	
-		CUDA_ERR_CHECK(cudaMalloc(&x_new, sizeof(double) * nx * ny));
-		CUDA_ERR_CHECK(cudaMalloc(&x_old, sizeof(double) * nx * ny)); 
-		CUDA_ERR_CHECK(cudaMalloc(&bndN,  sizeof(double) * nx));
-		CUDA_ERR_CHECK(cudaMalloc(&bndS,  sizeof(double) * nx)); 
-		CUDA_ERR_CHECK(cudaMalloc(&bndE,  sizeof(double) * ny)); 
-		CUDA_ERR_CHECK(cudaMalloc(&bndW,  sizeof(double) * ny)); 
-
-		// set dirichlet boundary conditions to 0 all around
-		CUDA_ERR_CHECK(cudaMemcpy(bndN, cpu::bndN, sizeof(double) * nx, cudaMemcpyHostToDevice));
-		CUDA_ERR_CHECK(cudaMemcpy(bndS, cpu::bndS, sizeof(double) * nx, cudaMemcpyHostToDevice));
-		CUDA_ERR_CHECK(cudaMemcpy(bndE, cpu::bndE, sizeof(double) * ny, cudaMemcpyHostToDevice));
-		CUDA_ERR_CHECK(cudaMemcpy(bndW, cpu::bndW, sizeof(double) * ny, cudaMemcpyHostToDevice));
-
-		// set the initial condition
-		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
-		// no larger than 1/8 of both xdim and ydim
-		CUDA_ERR_CHECK(cudaMemcpy(x_new, cpu::x_new, sizeof(double) * nx * ny, cudaMemcpyHostToDevice));
+		cudaMallocDevice(x_new, sizeof(double) * nx * ny);
+		cudaMallocDevice(x_old, sizeof(double) * nx * ny);
+		cudaMallocDevice(bndN,  sizeof(double) * nx);
+		cudaMallocDevice(bndS,  sizeof(double) * nx);
+		cudaMallocDevice(bndE,  sizeof(double) * ny);
+		cudaMallocDevice(bndW,  sizeof(double) * ny);
 	}
 	
 	using namespace cpu;
