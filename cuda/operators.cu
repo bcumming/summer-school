@@ -121,12 +121,6 @@ namespace gpu
 		                    + dxs * U(j, i) * (1.0 - U(j, i));
 		    }
 		}
-		// Accumulate the flop counts
-		// 8 ops total per point
-		flops_diff =
-		    + 12 * (options.nx - 2) * (options.ny - 2) // interior points
-		    + 11 * (options.nx - 2  +  options.ny - 2) // NESW boundary points
-		    + 11 * 4;                                  // corner points
 	}
 }
 
@@ -162,11 +156,11 @@ void diffusion(const double* up, double* sp)
 	CUDA_ERR_CHECK(cudaFree(up_gpu));
 	CUDA_ERR_CHECK(cudaFree(sp_gpu));
 
-	// Update the number of flops.	
-	unsigned long long* gpu_flops_diff = NULL;
-	CUDA_ERR_CHECK(cudaGetSymbolAddress((void**)&gpu_flops_diff, gpu::flops_diff));
-	unsigned long long gpu_flops_diff_value;
-	CUDA_ERR_CHECK(cudaMemcpy(&gpu_flops_diff_value, gpu_flops_diff, sizeof(unsigned long long), cudaMemcpyDeviceToHost));
-	flops_diff += gpu_flops_diff_value;
+	// Accumulate the flop counts
+	// 8 ops total per point
+	flops_diff +=
+	    + 12 * (options.nx - 2) * (options.ny - 2) // interior points
+	    + 11 * (options.nx - 2  +  options.ny - 2) // NESW boundary points
+	    + 11 * 4;                                  // corner points}
 }
 
