@@ -1,4 +1,4 @@
-//******************************************
+// *****************************************
 // operators.f90
 // based on min-app code written by Oliver Fuhrer, MeteoSwiss
 // modified by Ben Cumming, CSCS
@@ -19,151 +19,134 @@ using namespace thrust::system::cuda::detail;
 #define S(j,i)    sp[(i) + (j)*nx]
 #define X(j,i) x_old[(i) + (j)*nx]
 
-namespace gpu
+__global__ void diffusion_interior_grid_points(const double* up, double* sp)
 {
-    __global__ void diffusion_interior_grid_points(const double* up, double* sp)
-    {
-        using namespace gpu;
+    using namespace gpu;
 
-        double dxs   = 1000. * options.dx * options.dx;
-        double alpha = options.alpha;
-        int    iend  = options.nx - 1;
-        int    jend  = options.ny - 1;
+    double dxs   = 1000. * options.dx * options.dx;
+    double alpha = options.alpha;
+    int    iend  = options.nx - 1;
+    int    jend  = options.ny - 1;
 
-        int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
-        int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
-        
-        if ((i >= iend) || (j >= jend)) return;
-
-        int nx = options.nx;
-
-        S(j, i) = -(4. + alpha) * U(j,i)              // central point
-                                + U(j,i-1) + U(j,i+1) // east and west
-                                + U(j-1,i) + U(j+1,i) // north and south
-
-                                + alpha * X(j,i)
-                                + dxs * U(j,i) * (1.0 - U(j,i));
-    }
+    int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
     
-    __global__ void diffusion_east_boundary_points(const double* up, double* sp)
+    if ((i >= iend) || (j >= jend)) return;
+
+    int nx = options.nx;
+
+    S(j, i) = -(4. + alpha) * U(j,i)              // central point
+                            + U(j,i-1) + U(j,i+1) // east and west
+                            + U(j-1,i) + U(j+1,i) // north and south
+
+                            + alpha * X(j,i)
+                            + dxs * U(j,i) * (1.0 - U(j,i));
+}
+
+__global__ void diffusion_east_west_boundary_points(const double* up, double* sp)
+{
+    using namespace gpu;
+
+    double dxs   = 1000. * options.dx * options.dx;
+    double alpha = options.alpha;
+    int    jend  = options.ny - 1;
+
+    int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
+
+    if (j >= jend) return;
+
+    int nx = options.nx;
+
+    int i = options.nx - 1;
+
+    S(j, i) = -(4. + alpha) * U(j,i)
+                            + U(j, i - 1) + U(j - 1, i) + U(j + 1, i)
+
+                            + alpha * X(j, i) + bndE[j]
+                            + dxs * U(j, i) * (1.0 - U(j, i));
+
+    i = 0;
+
+    S(j, i) = -(4. + alpha) * U(j, i)
+                            + U(j, i + 1) + U(j - 1, i) + U(j + 1, i)
+
+                            + alpha * X(j, i) + bndW[j]
+                            + dxs * U(j, i) * (1.0 - U(j, i));
+}
+
+__global__ void diffusion_north_south_boundary_points(const double* up, double* sp)
+{
+    using namespace gpu;
+
+    double dxs   = 1000. * options.dx * options.dx;
+    double alpha = options.alpha;
+    int    iend  = options.nx - 1;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
+
+    if (i >= iend) return;
+
+    int nx = options.nx;
+
+    int j = options.ny - 1;
+
+    S(j, i) = -(4. + alpha) * U(j, i)
+                            + U(j, i - 1) + U(j, i + 1) + U(j - 1, i)
+
+                            + alpha * X(j, i) + bndN[i]
+                            + dxs * U(j, i) * (1.0 - U(j, i));
+
+    j = 0;
+
+    S(j, i) = -(4. + alpha) * U(j, i)
+                            + U(j, i - 1) + U(j, i + 1) + U(j + 1, i)
+
+                            + alpha * X(j, i) + bndS[i]
+                            + dxs * U(j, i) * (1.0 - U(j, i));
+}
+
+__global__ void diffusion_corner_points(const double* up, double* sp)
+{
+    using namespace gpu;
+
+    double dxs   = 1000. * options.dx * options.dx;
+    double alpha = options.alpha;
+
+    int nx = options.nx;
+
     {
-        using namespace gpu;
-
-        double dxs   = 1000. * options.dx * options.dx;
-        double alpha = options.alpha;
-
-        int i = options.nx - 1;
-        int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
-
-        int nx = options.nx;
-
-        S(j, i) = -(4. + alpha) * U(j,i)
-                                + U(j, i - 1) + U(j - 1, i) + U(j + 1, i)
-
-                                + alpha * X(j, i) + bndE[j]
-                                + dxs * U(j, i) * (1.0 - U(j, i));
-    }
-
-    __global__ void diffusion_west_boundary_points(const double* up, double* sp)
-    {
-        using namespace gpu;
-
-        double dxs   = 1000. * options.dx * options.dx;
-        double alpha = options.alpha;
-
-        int i = 0;
-        int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
-
-        int nx = options.nx;
-
-        S(j, i) = -(4. + alpha) * U(j, i)
-                                + U(j, i + 1) + U(j - 1, i) + U(j + 1, i)
-
-                                + alpha * X(j, i) + bndW[j]
-                                + dxs * U(j, i) * (1.0 - U(j, i));
-    }
-
-    __global__ void diffusion_north_boundary_points(const double* up, double* sp)
-    {
-        using namespace gpu;
-
-        double dxs   = 1000. * options.dx * options.dx;
-        double alpha = options.alpha;
-
-        int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
         int j = options.ny - 1;
-
-        int nx = options.nx;
-
-        S(j, i) = -(4. + alpha) * U(j, i)
-                                + U(j, i - 1) + U(j, i + 1) + U(j - 1, i)
-
-                                + alpha * X(j, i) + bndN[i]
-                                + dxs * U(j, i) * (1.0 - U(j, i));
-    }
-
-    __global__ void diffusion_south_boundary_points(const double* up, double* sp)
-    {
-        using namespace gpu;
-
-        double dxs   = 1000. * options.dx * options.dx;
-        double alpha = options.alpha;
-
-        int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
-        int j = 0;
-
-        int nx = options.nx;
-
-        S(j, i) = -(4. + alpha) * U(j, i)
-                                + U(j, i - 1) + U(j, i + 1) + U(j + 1, i)
-
-                                + alpha * X(j, i) + bndS[i]
-                                + dxs * U(j, i) * (1.0 - U(j, i));
-    }
-
-    __global__ void diffusion_corner_points(const double* up, double* sp)
-    {
-        using namespace gpu;
-
-        double dxs   = 1000. * options.dx * options.dx;
-        double alpha = options.alpha;
-
-        int nx = options.nx;
-
         {
-            int j = options.ny - 1;
-            {
-                int i = 0; // NW corner
-                S(j, i) = -(4. + alpha) * U(j, i)
-                            + U(j, i + 1) + U(j - 1, i)
+            int i = 0; // NW corner
+            S(j, i) = -(4. + alpha) * U(j, i)
+                        + U(j, i + 1) + U(j - 1, i)
 
-                            + alpha * X(j, i) + bndW[j] + bndN[i]
-                            + dxs * U(j, i) * (1.0 - U(j, i));
-            }
-            {
-                int i = options.nx - 1; // NE corner
-                S(j, i) = -(4. + alpha) * U(j, i)
-                            + U(j, i - 1) + U(j - 1, i)
-                            + alpha * X(j, i) + bndE[j] + bndN[i]
-                            + dxs * U(j, i) * (1.0 - U(j, i));
-            }
+                        + alpha * X(j, i) + bndW[j] + bndN[i]
+                        + dxs * U(j, i) * (1.0 - U(j, i));
         }
         {
-            int j = 0;
-            {
-                int i = 0; // SW corner
-                S(j, i) = -(4. + alpha) * U(j, i)
-                            + U(j, i + 1) + U(j + 1, i)
-                            + alpha * X(j, i) + bndW[j] + bndS[i]
-                            + dxs * U(j, i) * (1.0 - U(j, i));
-            }
-            {
-                int i = options.nx - 1; // SE corner
-                S(j, i) = -(4. + alpha) * U(j, i)
-                            + U(j, i - 1) + U(j + 1, i)
-                            + alpha * X(j, i) + bndE[j] + bndS[i]
-                            + dxs * U(j, i) * (1.0 - U(j, i));
-            }
+            int i = options.nx - 1; // NE corner
+            S(j, i) = -(4. + alpha) * U(j, i)
+                        + U(j, i - 1) + U(j - 1, i)
+                        + alpha * X(j, i) + bndE[j] + bndN[i]
+                        + dxs * U(j, i) * (1.0 - U(j, i));
+        }
+    }
+    {
+        int j = 0;
+        {
+            int i = 0; // SW corner
+            S(j, i) = -(4. + alpha) * U(j, i)
+                        + U(j, i + 1) + U(j + 1, i)
+                        + alpha * X(j, i) + bndW[j] + bndS[i]
+                        + dxs * U(j, i) * (1.0 - U(j, i));
+        }
+        {
+            int i = options.nx - 1; // SE corner
+            S(j, i) = -(4. + alpha) * U(j, i)
+                        + U(j, i - 1) + U(j + 1, i)
+                        + alpha * X(j, i) + bndE[j] + bndS[i]
+                        + dxs * U(j, i) * (1.0 - U(j, i));
         }
     }
 }
@@ -217,7 +200,7 @@ void diffusion(const double* up, double* sp)
     struct function_attributes_t attrs;
     {
         cudaFuncAttributes funcAttrs;
-        CUDA_ERR_CHECK(cudaFuncGetAttributes(&funcAttrs, gpu::diffusion_interior_grid_points));
+        CUDA_ERR_CHECK(cudaFuncGetAttributes(&funcAttrs, diffusion_interior_grid_points));
         attrs.constSizeBytes = funcAttrs.constSizeBytes;
         attrs.localSizeBytes = funcAttrs.localSizeBytes;
         attrs.maxThreadsPerBlock = funcAttrs.maxThreadsPerBlock;
@@ -243,20 +226,16 @@ void diffusion(const double* up, double* sp)
     // Launch kernel for parallel processing of interior points.
     dim3 grid, block;
     grid_block(szblock, nx - 2, ny - 2, grid, block);
-    gpu::diffusion_interior_grid_points<<<grid, block>>>(up_gpu, sp_gpu);
+    diffusion_interior_grid_points<<<grid, block>>>(up_gpu, sp_gpu);
     
     // Launch kernels for parallel processing of boundary points.
     grid_block(szblock, 1, ny - 2, grid, block);
-    gpu::diffusion_east_boundary_points<<<grid, block>>>(up_gpu, sp_gpu);
-    grid_block(szblock, 1, ny - 2, grid, block);
-    gpu::diffusion_west_boundary_points<<<grid, block>>>(up_gpu, sp_gpu);
+    diffusion_east_west_boundary_points<<<grid, block>>>(up_gpu, sp_gpu);
     grid_block(szblock, nx - 2, 1, grid, block);
-    gpu::diffusion_north_boundary_points<<<grid, block>>>(up_gpu, sp_gpu);
-    grid_block(szblock, nx - 2, 1, grid, block);
-    gpu::diffusion_south_boundary_points<<<grid, block>>>(up_gpu, sp_gpu);
+    diffusion_north_south_boundary_points<<<grid, block>>>(up_gpu, sp_gpu);
     
     // Launch kernel for single-threaded processing of corner points.
-    gpu::diffusion_corner_points<<<1, 1>>>(up_gpu, sp_gpu);
+    diffusion_corner_points<<<1, 1>>>(up_gpu, sp_gpu);
     
     // Copy back the resulting "sp" data.
     CUDA_ERR_CHECK(cudaMemcpy(sp, sp_gpu, sizeof(double) * nx * ny, cudaMemcpyDeviceToHost));
