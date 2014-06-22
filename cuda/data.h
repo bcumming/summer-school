@@ -19,8 +19,11 @@ namespace cpu
 	// fields that hold the solution
 	extern double *x_new, *x_old; // 2d
 	extern double *bndN, *bndE, *bndS, *bndW; // 1d
+	extern double *b, *deltax;
 
 	extern struct discretization_t options;
+
+	extern cudaDeviceProp gpuProps;
 }
 
 namespace gpu
@@ -28,8 +31,11 @@ namespace gpu
 	// fields that hold the solution
 	extern __device__ double *x_new, *x_old; // 2d
 	extern __device__ double *bndN, *bndE, *bndS, *bndW; // 1d
+	extern __device__ double *b, *deltax;
 
 	extern __constant__ struct discretization_t options;
+	
+	extern __constant__ cudaDeviceProp gpuProps;
 }
 
 #endif // DATA_H

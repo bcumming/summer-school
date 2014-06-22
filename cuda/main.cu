@@ -103,17 +103,17 @@ int main(int argc, char* argv[])
     printf("========================================================================\n");
 
     // allocate global fields
-	double* b      = (double*) malloc(N*sizeof(double));
-	double* deltax = (double*) malloc(N*sizeof(double));
     {
     	using namespace cpu;
     	
-		x_new = (double*) malloc(sizeof(double)*nx*ny);
-		x_old = (double*) malloc(sizeof(double)*nx*ny); 
-		bndN  = (double*) malloc(sizeof(double)*nx);
-		bndS  = (double*) malloc(sizeof(double)*nx); 
-		bndE  = (double*) malloc(sizeof(double)*ny); 
-		bndW  = (double*) malloc(sizeof(double)*ny); 
+		x_new  = (double*) malloc(sizeof(double)*nx*ny);
+		x_old  = (double*) malloc(sizeof(double)*nx*ny); 
+		bndN   = (double*) malloc(sizeof(double)*nx);
+		bndS   = (double*) malloc(sizeof(double)*nx); 
+		bndE   = (double*) malloc(sizeof(double)*ny); 
+		bndW   = (double*) malloc(sizeof(double)*ny); 
+	    b      = (double*) malloc(N*sizeof(double));
+	    deltax = (double*) malloc(N*sizeof(double));
 
 		// set dirichlet boundary conditions to 0 all around
 		memset(bndN, 0, sizeof(double) * nx);
@@ -141,27 +141,21 @@ int main(int argc, char* argv[])
 		            x_new[i+j*nx] = 0.1;
 		    }
 		}
+		
+	    CUDA_ERR_CHECK(cudaGetDeviceProperties(&gpuProps, 0));
 	}
+   	
+	cudaMallocDevice(x_new,  sizeof(double) * nx * ny);
+	cudaMallocDevice(x_old,  sizeof(double) * nx * ny);
+	cudaMallocDevice(bndN,   sizeof(double) * nx);
+	cudaMallocDevice(bndS,   sizeof(double) * nx);
+	cudaMallocDevice(bndE,   sizeof(double) * ny);
+	cudaMallocDevice(bndW,   sizeof(double) * ny);
+	cudaMallocDevice(b,      sizeof(double) * N);
+	cudaMallocDevice(deltax, sizeof(double) * N);
 
-    {
-    	using namespace gpu;
-   
-		#define cudaMallocDevice(dst, size) { \
-			double* memPtr = NULL; \
-			CUDA_ERR_CHECK(cudaMalloc(&memPtr, size)); \
-			double* ptrPtr; \
-			CUDA_ERR_CHECK(cudaGetSymbolAddress((void**)&ptrPtr, dst)); \
-			CUDA_ERR_CHECK(cudaMemcpy(ptrPtr, &memPtr, sizeof(double*), cudaMemcpyHostToDevice)); \
-			CUDA_ERR_CHECK(cudaMemcpy(memPtr, cpu::dst, size, cudaMemcpyHostToDevice)); \
-		}
-    	
-		cudaMallocDevice(x_new, sizeof(double) * nx * ny);
-		cudaMallocDevice(x_old, sizeof(double) * nx * ny);
-		cudaMallocDevice(bndN,  sizeof(double) * nx);
-		cudaMallocDevice(bndS,  sizeof(double) * nx);
-		cudaMallocDevice(bndE,  sizeof(double) * ny);
-		cudaMallocDevice(bndW,  sizeof(double) * ny);
-	}
+	CUDA_ERR_CHECK(cudaMemcpyToSymbol(gpu::gpuProps, &cpu::gpuProps,
+		sizeof(cudaDeviceProp)));
 	
 	using namespace cpu;
 
@@ -189,7 +183,10 @@ int main(int argc, char* argv[])
         for ( ; it <= 50; it++)
         {
             // compute residual : requires both x_new and x_old
-            diffusion(x_new, b);
+            diffusion_load(x_new, b);
+            CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::x_new), get_device_value(gpu::b)));
+            CUDA_ERR_CHECK(cudaDeviceSynchronize());
+            diffusion_unload(x_new, b);
             residual = ss_norm2(b, N);
 
             // check for convergence

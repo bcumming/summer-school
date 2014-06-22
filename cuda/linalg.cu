@@ -1,6 +1,7 @@
 // linear algebra subroutines
 // Ben Cumming @ CSCS
 
+#include "check.h"
 #include "linalg.h"
 #include "operators.h"
 #include "stats.h"
@@ -9,10 +10,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int cg_initialized = 0;
-double *r = NULL, *Ap = NULL, *p = NULL;
-double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
+static int cg_initialized = 0;
 
+namespace cpu
+{
+	extern double *r, *Ap, *p;
+	extern double *Fx, *Fxold, *v, *xold; // 1d
+}
+
+namespace gpu
+{
+	extern __device__ double *r, *Ap, *p;
+	extern __device__ double *Fx, *Fxold, *v, *xold; // 1d
+}
+
+double *cpu::r = NULL, *cpu::Ap = NULL, *cpu::p = NULL;
+double *cpu::Fx = NULL, *cpu::Fxold = NULL, *cpu::v = NULL, *cpu::xold = NULL; // 1d
+
+__device__ double *gpu::r = NULL, *gpu::Ap = NULL, *gpu::p = NULL;
+__device__ double *gpu::Fx = NULL, *gpu::Fxold = NULL, *gpu::v = NULL, *gpu::xold = NULL; // 1d
 
 // initialize temporary storage fields used by the cg solver
 // I do this here so that the fields are persistent between calls
@@ -21,13 +37,23 @@ double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
 // method for doing this)
 void cg_init(const int N)
 {
-    Ap    = (double*) malloc(N*sizeof(double));
-    r     = (double*) malloc(N*sizeof(double)); 
-    p     = (double*) malloc(N*sizeof(double));
-    Fx    = (double*) malloc(N*sizeof(double));
-    Fxold = (double*) malloc(N*sizeof(double));
-    v     = (double*) malloc(N*sizeof(double));
-    xold  = (double*) malloc(N*sizeof(double));
+	using namespace cpu;
+
+    Ap    = (double*) malloc(sizeof(double) * N);
+    r     = (double*) malloc(sizeof(double) * N); 
+    p     = (double*) malloc(sizeof(double) * N);
+    Fx    = (double*) malloc(sizeof(double) * N);
+    Fxold = (double*) malloc(sizeof(double) * N);
+    v     = (double*) malloc(sizeof(double) * N);
+    xold  = (double*) malloc(sizeof(double) * N);
+
+	cudaMallocDevice(Ap,    sizeof(double) * N);
+	cudaMallocDevice(r,     sizeof(double) * N);
+	cudaMallocDevice(p,     sizeof(double) * N);
+	cudaMallocDevice(Fx,    sizeof(double) * N);
+	cudaMallocDevice(Fxold, sizeof(double) * N);
+	cudaMallocDevice(v,     sizeof(double) * N);
+	cudaMallocDevice(xold,  sizeof(double) * N);
 
     cg_initialized = 1;
 }
@@ -209,13 +235,19 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int
     //     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
     // we compute Fxold at startup
     // we have to keep x so that we can compute the F(x+exps*v)
-    diffusion(x, Fxold);
+    diffusion_load(deltax, Fxold);
+    CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::deltax), get_device_value(gpu::Fxold)));
+    CUDA_ERR_CHECK(cudaDeviceSynchronize());
+    diffusion_unload(deltax, Fxold);
 
     // v = x + epsilon*x
     ss_scale(v, 1.0 + eps, x, N);
 
     // Fx = F(v)
-    diffusion(v, Fx);
+    diffusion_load(v, Fx);
+    CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::v), get_device_value(gpu::Fx)));
+    CUDA_ERR_CHECK(cudaDeviceSynchronize());
+    diffusion_unload(v, Fx);
 
     // r = b - A*x
     // where A*x = (Fx-Fxold)/eps
@@ -240,7 +272,10 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int
     {
         // Ap = A*p
         ss_lcomb(v, 1.0, xold, eps, p, N);
-        diffusion(v, Fx);
+        diffusion_load(v, Fx);
+        CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::v), get_device_value(gpu::Fx)));
+        CUDA_ERR_CHECK(cudaDeviceSynchronize());
+        diffusion_unload(v, Fx);
         ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
 
         // alpha = rold / p'*Ap
