@@ -11,7 +11,7 @@
 // to the CG solver. This is useful if we want to avoid malloc/free calls
 // on the device for the OpenACC implementation (feel free to suggest a better
 // method for doing this)
-void cg_init(const int N);
+__device__ void cg_init(const int N);
 
 ////////////////////////////////////////////////////////////////////////////////
 //  blas level 1 reductions
@@ -19,16 +19,16 @@ void cg_init(const int N);
 
 // computes the inner product of x and y
 // x and y are vectors on length N
-double ss_dot(const double* x, const double* y, const int N);
+__device__ double ss_dot(const double* x, const double* y, const int N);
 
 // computes the 2-norm of x
 // x is a vector on length N
-double ss_norm2(const double* x, const int N);
+__device__ double ss_norm2(const double* x, const int N);
 
 // sets entries in a vector to value
 // x is a vector on length N
 // value is th
-void ss_fill(double* x, const double value, const int N);
+__device__ void ss_fill(double* x, const double value, const int N);
 
 ////////////////////////////////////////////////////////////////////////////////
 //  blas level 1 vector-vector operations
@@ -37,34 +37,34 @@ void ss_fill(double* x, const double value, const int N);
 // computes y := alpha*x + y
 // x and y are vectors on length N
 // alpha is a scalar
-void ss_axpy(double* y, const double alpha, const double* x, const int N);
+__device__ void ss_axpy(double* y, const double alpha, const double* x, const int N);
 
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-void ss_add_scaled_diff(double* y, const double* x, const double alpha,
+__device__ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
     const double* l, const double* r, const int N);
 
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-void ss_scaled_diff(double* y, const double alpha,
+__device__ void ss_scaled_diff(double* y, const double alpha,
     const double* l, const double* r, const int N);
 
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors on length n
-void ss_scale(double* y, const double alpha, double* x, const int N);
+__device__ void ss_scale(double* y, const double alpha, double* x, const int N);
 
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors on length n
-void ss_lcomb(double* y, const double alpha, double* x, const double beta,
+__device__ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
     const double* z, const int N);
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-void ss_copy(double* y, const double* x, const int N);
+__device__ void ss_copy(double* y, const double* x, const int N);
 
 // conjugate gradient solver
 // solve the linear system A*x = b for x
@@ -73,7 +73,7 @@ void ss_copy(double* y, const double* x, const int N);
 // x(N)
 // ON ENTRY contains the initial guess for the solution
 // ON EXIT  contains the solution
-void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success);
+__global__ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success);
 
 #endif // LINALG_H
 

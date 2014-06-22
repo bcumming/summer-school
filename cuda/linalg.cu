@@ -10,50 +10,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static int cg_initialized = 0;
-
-namespace cpu
-{
-	extern double *r, *Ap, *p;
-	extern double *Fx, *Fxold, *v, *xold; // 1d
-}
-
-namespace gpu
-{
-	extern __device__ double *r, *Ap, *p;
-	extern __device__ double *Fx, *Fxold, *v, *xold; // 1d
-}
-
-double *cpu::r = NULL, *cpu::Ap = NULL, *cpu::p = NULL;
-double *cpu::Fx = NULL, *cpu::Fxold = NULL, *cpu::v = NULL, *cpu::xold = NULL; // 1d
-
-__device__ double *gpu::r = NULL, *gpu::Ap = NULL, *gpu::p = NULL;
-__device__ double *gpu::Fx = NULL, *gpu::Fxold = NULL, *gpu::v = NULL, *gpu::xold = NULL; // 1d
+__device__ int cg_initialized = 0;
+__device__ double *r = NULL, *Ap = NULL, *p = NULL;
+__device__ double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
 
 // initialize temporary storage fields used by the cg solver
 // I do this here so that the fields are persistent between calls
 // to the CG solver. This is useful if we want to avoid malloc/free calls
 // on the device for the OpenACC implementation (feel free to suggest a better
 // method for doing this)
-void cg_init(const int N)
+__device__ void cg_init(const int N)
 {
-	using namespace cpu;
-
-    Ap    = (double*) malloc(sizeof(double) * N);
-    r     = (double*) malloc(sizeof(double) * N); 
-    p     = (double*) malloc(sizeof(double) * N);
-    Fx    = (double*) malloc(sizeof(double) * N);
-    Fxold = (double*) malloc(sizeof(double) * N);
-    v     = (double*) malloc(sizeof(double) * N);
-    xold  = (double*) malloc(sizeof(double) * N);
-
-	cudaMallocDevice(Ap,    sizeof(double) * N);
-	cudaMallocDevice(r,     sizeof(double) * N);
-	cudaMallocDevice(p,     sizeof(double) * N);
-	cudaMallocDevice(Fx,    sizeof(double) * N);
-	cudaMallocDevice(Fxold, sizeof(double) * N);
-	cudaMallocDevice(v,     sizeof(double) * N);
-	cudaMallocDevice(xold,  sizeof(double) * N);
+    CUDA_ERR_CHECK(cudaMalloc(&Ap,    sizeof(double) * N));
+    CUDA_ERR_CHECK(cudaMalloc(&r,     sizeof(double) * N)); 
+    CUDA_ERR_CHECK(cudaMalloc(&p,     sizeof(double) * N));
+    CUDA_ERR_CHECK(cudaMalloc(&Fx,    sizeof(double) * N));
+    CUDA_ERR_CHECK(cudaMalloc(&Fxold, sizeof(double) * N));
+    CUDA_ERR_CHECK(cudaMalloc(&v,     sizeof(double) * N));
+    CUDA_ERR_CHECK(cudaMalloc(&xold,  sizeof(double) * N));
 
     cg_initialized = 1;
 }
@@ -64,9 +38,9 @@ void cg_init(const int N)
 
 // computes the inner product of x and y
 // x and y are vectors on length N
-double ss_dot(const double* x, const double* y, const int N)
+__device__ double ss_dot(const double* x, const double* y, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
     double result = 0;
 	int i;
@@ -81,9 +55,9 @@ double ss_dot(const double* x, const double* y, const int N)
 
 // computes the 2-norm of x
 // x is a vector on length N
-double ss_norm2(const double* x, const int N)
+__device__ double ss_norm2(const double* x, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
     double result = 0;
 	int i;
@@ -101,9 +75,9 @@ double ss_norm2(const double* x, const int N)
 // sets entries in a vector to value
 // x is a vector on length N
 // value is th
-void ss_fill(double* x, const double value, const int N)
+__device__ void ss_fill(double* x, const double value, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
 	int i;
     for (i = 0; i < N; i++)
@@ -117,9 +91,9 @@ void ss_fill(double* x, const double value, const int N)
 // computes y := alpha*x + y
 // x and y are vectors on length N
 // alpha is a scalar
-void ss_axpy(double* y, const double alpha, const double* x, const int N)
+__device__ void ss_axpy(double* y, const double alpha, const double* x, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
 	int i;
     for (i = 0; i < N; i++)
@@ -132,10 +106,10 @@ void ss_axpy(double* y, const double alpha, const double* x, const int N)
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-void ss_add_scaled_diff(double* y, const double* x, const double alpha,
+__device__ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
     const double* l, const double* r, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
 	int i;
     for (i = 0; i < N; i++)
@@ -148,10 +122,10 @@ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-void ss_scaled_diff(double* y, const double alpha,
+__device__ void ss_scaled_diff(double* y, const double alpha,
     const double* l, const double* r, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
 	int i;
     for (i = 0; i < N; i++)
@@ -164,9 +138,9 @@ void ss_scaled_diff(double* y, const double alpha,
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors on length n
-void ss_scale(double* y, const double alpha, double* x, const int N)
+__device__ void ss_scale(double* y, const double alpha, double* x, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
 	int i;
     for (i = 0; i < N; i++)
@@ -179,10 +153,10 @@ void ss_scale(double* y, const double alpha, double* x, const int N)
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors on length n
-void ss_lcomb(double* y, const double alpha, double* x, const double beta,
+__device__ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
     const double* z, const int N)
 {
-	using namespace cpu;
+	using namespace gpu;
 
 	int i;
     for (i = 0; i < N; i++)
@@ -194,7 +168,7 @@ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-void ss_copy(double* y, const double* x, const int N)
+__device__ void ss_copy(double* y, const double* x, const int N)
 {
 	int i;
     for (i = 0; i < N; i++)
@@ -208,9 +182,9 @@ void ss_copy(double* y, const double* x, const int N)
 // x(N)
 // ON ENTRY contains the initial guess for the solution
 // ON EXIT  contains the solution
-void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success)
+__global__ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success)
 {
-    using namespace cpu;
+    using namespace gpu;
 
     // this is the dimension of the linear system that we are to solve
     int N = options.N;
@@ -235,19 +209,15 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int
     //     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
     // we compute Fxold at startup
     // we have to keep x so that we can compute the F(x+exps*v)
-    diffusion_load(deltax, Fxold);
-    CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::deltax), get_device_value(gpu::Fxold)));
+    CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(x, Fxold));
     CUDA_ERR_CHECK(cudaDeviceSynchronize());
-    diffusion_unload(deltax, Fxold);
 
     // v = x + epsilon*x
     ss_scale(v, 1.0 + eps, x, N);
 
     // Fx = F(v)
-    diffusion_load(v, Fx);
-    CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::v), get_device_value(gpu::Fx)));
+    CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(v, Fx));
     CUDA_ERR_CHECK(cudaDeviceSynchronize());
-    diffusion_unload(v, Fx);
 
     // r = b - A*x
     // where A*x = (Fx-Fxold)/eps
@@ -272,10 +242,8 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int
     {
         // Ap = A*p
         ss_lcomb(v, 1.0, xold, eps, p, N);
-        diffusion_load(v, Fx);
-        CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::v), get_device_value(gpu::Fx)));
+        CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(v, Fx));
         CUDA_ERR_CHECK(cudaDeviceSynchronize());
-        diffusion_unload(v, Fx);
         ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
 
         // alpha = rold / p'*Ap
@@ -306,8 +274,8 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int
 
     if (!*success)
     {
-        fprintf(stderr, "ERROR: CG failed to converge after %d iterations\n", maxiters);
-        fprintf(stderr, "       achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
+        printf("ERROR: CG failed to converge after %d iterations\n", maxiters);
+        printf("       achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
     }
 }
 

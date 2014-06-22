@@ -84,6 +84,16 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
 
 // ==============================================================================
 
+__global__ void ss_axpy_kernel(double* y, const double alpha, const double* x, const int N)
+{
+	ss_axpy(y, alpha, x, N);
+}
+
+__global__ void ss_norm2_kernel(const double* x, const int N, double* result)
+{
+	*result = ss_norm2(x, N);
+}
+
 int main(int argc, char* argv[])
 {
     // read command line arguments
@@ -106,20 +116,22 @@ int main(int argc, char* argv[])
     {
     	using namespace cpu;
     	
-		x_new  = (double*) malloc(sizeof(double)*nx*ny);
-		x_old  = (double*) malloc(sizeof(double)*nx*ny); 
-		bndN   = (double*) malloc(sizeof(double)*nx);
-		bndS   = (double*) malloc(sizeof(double)*nx); 
-		bndE   = (double*) malloc(sizeof(double)*ny); 
-		bndW   = (double*) malloc(sizeof(double)*ny); 
-	    b      = (double*) malloc(N*sizeof(double));
-	    deltax = (double*) malloc(N*sizeof(double));
+		x_new  = (double*) malloc(sizeof(double) * nx * ny);
+		x_old  = (double*) malloc(sizeof(double) * nx * ny); 
+		bndN   = (double*) malloc(sizeof(double) * nx);
+		bndS   = (double*) malloc(sizeof(double) * nx); 
+		bndE   = (double*) malloc(sizeof(double) * ny); 
+		bndW   = (double*) malloc(sizeof(double) * ny); 
+	    b      = (double*) malloc(sizeof(double) * N);
+	    deltax = (double*) malloc(sizeof(double) * N);
 
 		// set dirichlet boundary conditions to 0 all around
-		memset(bndN, 0, sizeof(double) * nx);
-		memset(bndS, 0, sizeof(double) * nx);
-		memset(bndE, 0, sizeof(double) * ny);
-		memset(bndW, 0, sizeof(double) * ny);
+		memset(bndN,   0, sizeof(double) * nx);
+		memset(bndS,   0, sizeof(double) * nx);
+		memset(bndE,   0, sizeof(double) * ny);
+		memset(bndW,   0, sizeof(double) * ny);
+		memset(b,      0, sizeof(double) * N);
+		memset(deltax, 0, sizeof(double) * N);
 
 		// set the initial condition
 		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
@@ -137,7 +149,6 @@ int main(int argc, char* argv[])
 		    {
 		        double x = (i - 1) * options.dx;
 		        if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-		            //((double(*)[nx])x_new)[j][i] = 0.1;
 		            x_new[i+j*nx] = 0.1;
 		    }
 		}
@@ -159,13 +170,6 @@ int main(int argc, char* argv[])
 	
 	using namespace cpu;
 
-    flops_bc = 0;
-    flops_diff = 0;
-    flops_blas1 = 0;
-    verbose_output = 0;
-    iters_cg = 0;
-    iters_newton = 0;
-
     // start timer
     double timespent = -omp_get_wtime();
 
@@ -175,7 +179,8 @@ int main(int argc, char* argv[])
     for (timestep = 1; timestep <= nt; timestep++)
     {
         // set x_new and x_old to be the solution
-        ss_copy(x_old, x_new, N);
+        CUDA_ERR_CHECK(cudaMemcpy(get_device_value(gpu::x_old), get_device_value(gpu::x_new), sizeof(double) * N,
+        	cudaMemcpyDeviceToDevice));
 
         double residual;
         int    converged = 0;
@@ -183,11 +188,14 @@ int main(int argc, char* argv[])
         for ( ; it <= 50; it++)
         {
             // compute residual : requires both x_new and x_old
-            diffusion_load(x_new, b);
             CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::x_new), get_device_value(gpu::b)));
             CUDA_ERR_CHECK(cudaDeviceSynchronize());
-            diffusion_unload(x_new, b);
-            residual = ss_norm2(b, N);
+            double* residual_gpu;
+            CUDA_ERR_CHECK(cudaMalloc(&residual_gpu, sizeof(double)));
+            CUDA_LAUNCH_ERR_CHECK(ss_norm2_kernel<<<1, 1>>>(get_device_value(gpu::b), N, residual_gpu));
+            CUDA_ERR_CHECK(cudaDeviceSynchronize());
+            CUDA_ERR_CHECK(cudaMemcpy(&residual, residual_gpu, sizeof(double), cudaMemcpyDeviceToHost));
+            CUDA_ERR_CHECK(cudaFree(residual_gpu));
 
             // check for convergence
             if (residual < tolerance)
@@ -198,20 +206,29 @@ int main(int argc, char* argv[])
 
             // solve linear system to get -deltax
             int cg_converged = 0;
-            ss_cg(deltax, b, 200, tolerance, &cg_converged);
+            int* cg_converged_gpu;
+            CUDA_ERR_CHECK(cudaMalloc(&cg_converged_gpu, sizeof(int)));
+            CUDA_ERR_CHECK(cudaMemset(cg_converged_gpu, 0, sizeof(int)));
+            CUDA_LAUNCH_ERR_CHECK(ss_cg<<<1, 1>>>(get_device_value(gpu::deltax), get_device_value(gpu::b), 200, tolerance, cg_converged_gpu));
+            CUDA_ERR_CHECK(cudaDeviceSynchronize());
+            CUDA_ERR_CHECK(cudaMemcpy(&cg_converged, cg_converged_gpu, sizeof(int), cudaMemcpyDeviceToHost));
 
             // check that the CG solver converged
             if (!cg_converged) break;
 
             // update solution
-            ss_axpy(x_new, -1.0, deltax, N);
+            CUDA_LAUNCH_ERR_CHECK(ss_axpy_kernel<<<1, 1>>>(get_device_value(gpu::x_new), -1.0, get_device_value(gpu::deltax), N));
+            CUDA_ERR_CHECK(cudaDeviceSynchronize());
+
+			// offload x_new
+			CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, get_device_value(gpu::x_new), sizeof(double) * nx * ny, cudaMemcpyDeviceToHost));
 
             // print control sum of x_new
             if (timestep % 50 == 0)
             {
                 double sum = 0.0;
                 for (int i = 0; i < N; i++)
-                    sum += x_new [i];
+                    sum += x_new[i];
                 printf("sum = %f\n", sum);
             }
         }
@@ -230,6 +247,8 @@ int main(int argc, char* argv[])
 
     // get times
     timespent += omp_get_wtime();
+    flops_diff += get_device_value(gpu::flops_diff);
+    flops_blas1 += get_device_value(gpu::flops_blas1);
     unsigned long long flops_total = flops_diff + flops_blas1;
 
     ////////////////////////////////////////////////////////////////////
@@ -261,6 +280,7 @@ int main(int argc, char* argv[])
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
     printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
+    iters_cg = get_device_value(gpu::iters_cg);
     printf("%d conjugate gradient iterations\n", (int)iters_cg);
     printf("%d newton iterations\n", (int)iters_newton);
     printf("--------------------------------------------------------------------------------\n");
