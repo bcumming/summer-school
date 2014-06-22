@@ -1,11 +1,5 @@
-CXX=CC
-ifeq ($(PE_ENV),GNU)
-    # the gnu compiler requires that we specifically enable OpenMP
-	CXXFLAGS=-O3 -fopenmp
-endif
-ifeq ($(PE_ENV),CRAY)
-	CXXFLAGS=-O3
-endif
+CXX=icc
+CXXFLAGS=-O3 -openmp
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
 HEADERS = stats.h   data.h   operators.h   linalg.h

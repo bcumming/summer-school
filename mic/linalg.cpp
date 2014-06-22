@@ -6,7 +6,7 @@
 #include <cmath>
 #include <cstdio>
 
-#include <mpi.h>
+//#include <mpi.h>
 
 #include "linalg.h"
 #include "operators.h"
