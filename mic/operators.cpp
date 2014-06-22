@@ -31,6 +31,7 @@ void diffusion(const data::Field &U, data::Field &S)
     int jend  = ny - 1;
 
     // the interior grid points
+	#pragma omp parallel for collapse(2)
     for (int j=1; j < jend; j++) {
         for (int i=1; i < iend; i++) {
             S(i,j) = -(4. + alpha) * U(i,j)               // central point
@@ -44,6 +45,7 @@ void diffusion(const data::Field &U, data::Field &S)
     // the east boundary
     {
         int i = nx - 1;
+		#pragma omp parallel for
         for (int j = 1; j < jend; j++)
         {
             S(i,j) = -(4. + alpha) * U(i,j)
@@ -56,6 +58,7 @@ void diffusion(const data::Field &U, data::Field &S)
     // the west boundary
     {
         int i = 0;
+		#pragma omp parallel for
         for (int j = 1; j < jend; j++)
         {
             S(i,j) = -(4. + alpha) * U(i,j)
@@ -78,6 +81,7 @@ void diffusion(const data::Field &U, data::Field &S)
         }
 
         // north boundary
+		#pragma omp parallel for
         for (int i = 1; i < iend; i++)
         {
             S(i,j) = -(4. + alpha) * U(i,j)
@@ -108,6 +112,7 @@ void diffusion(const data::Field &U, data::Field &S)
         }
 
         // south boundary
+		#pragma omp parallel for
         for (int i = 1; i < iend; i++)
         {
             S(i,j) = -(4. + alpha) * U(i,j)

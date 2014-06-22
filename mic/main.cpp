@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 
     std::cout << "========================================================================" << std::endl;
     std::cout << "                      Welcome to mini-stencil!" << std::endl;
-    std::cout << "version :: C++ serial" << std::endl;
+    std::cout << "version :: MIC OpenMP (to run from MIC card)" << std::endl;
     std::cout << "mesh    :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
     std::cout << "time    :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
     std::cout << "========================================================================" << std::endl;

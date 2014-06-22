@@ -1,5 +1,5 @@
 CXX=icc
-CXXFLAGS=-O3 -openmp
+CXXFLAGS=-O3 -openmp -mmic
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
 HEADERS = stats.h   data.h   operators.h   linalg.h
