@@ -10,26 +10,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-__device__ int cg_initialized = 0;
-__device__ double *r = NULL, *Ap = NULL, *p = NULL;
-__device__ double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
-
-// initialize temporary storage fields used by the cg solver
-// I do this here so that the fields are persistent between calls
-// to the CG solver. This is useful if we want to avoid malloc/free calls
-// on the device for the OpenACC implementation (feel free to suggest a better
-// method for doing this)
-__device__ void cg_init(const int N)
+namespace
 {
-    CUDA_ERR_CHECK(cudaMalloc(&Ap,    sizeof(double) * N));
-    CUDA_ERR_CHECK(cudaMalloc(&r,     sizeof(double) * N)); 
-    CUDA_ERR_CHECK(cudaMalloc(&p,     sizeof(double) * N));
-    CUDA_ERR_CHECK(cudaMalloc(&Fx,    sizeof(double) * N));
-    CUDA_ERR_CHECK(cudaMalloc(&Fxold, sizeof(double) * N));
-    CUDA_ERR_CHECK(cudaMalloc(&v,     sizeof(double) * N));
-    CUDA_ERR_CHECK(cudaMalloc(&xold,  sizeof(double) * N));
+	__device__ int cg_initialized = 0;
+	__device__ double *r = NULL, *Ap = NULL, *p = NULL;
+	__device__ double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
 
-    cg_initialized = 1;
+	// initialize temporary storage fields used by the cg solver
+	// I do this here so that the fields are persistent between calls
+	// to the CG solver. This is useful if we want to avoid malloc/free calls
+	// on the device for the OpenACC implementation (feel free to suggest a better
+	// method for doing this)
+	__device__ void cg_init(const int N)
+	{
+		CUDA_ERR_CHECK(cudaMalloc(&Ap,    sizeof(double) * N));
+		CUDA_ERR_CHECK(cudaMalloc(&r,     sizeof(double) * N)); 
+		CUDA_ERR_CHECK(cudaMalloc(&p,     sizeof(double) * N));
+		CUDA_ERR_CHECK(cudaMalloc(&Fx,    sizeof(double) * N));
+		CUDA_ERR_CHECK(cudaMalloc(&Fxold, sizeof(double) * N));
+		CUDA_ERR_CHECK(cudaMalloc(&v,     sizeof(double) * N));
+		CUDA_ERR_CHECK(cudaMalloc(&xold,  sizeof(double) * N));
+
+		cg_initialized = 1;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,107 +75,259 @@ __device__ double ss_norm2(const double* x, const int N)
     return result;
 }
 
-// sets entries in a vector to value
-// x is a vector on length N
-// value is th
+namespace gpu
+{
+	namespace ss_fill_kernel
+	{
+		// sets entries in a vector to value
+		// x is a vector on length N
+		// value is th
+		__global__ void kernel(double* x, const double value, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+
+			x[i] = value;
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_fill(double* x, const double value, const int N)
 {
 	using namespace gpu;
+	using namespace gpu::ss_fill_kernel;
 
-	int i;
-    for (i = 0; i < N; i++)
-        x[i] = value;
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(x, value, N));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //  blas level 1 vector-vector operations
 ////////////////////////////////////////////////////////////////////////////////
 
-// computes y := alpha*x + y
-// x and y are vectors on length N
-// alpha is a scalar
+namespace gpu
+{
+	namespace ss_axpy_kernel
+	{
+		// computes y := alpha*x + y
+		// x and y are vectors on length N
+		// alpha is a scalar
+		__global__ void kernel(double* y, const double alpha, const double* x, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+		
+			y[i] += alpha * x[i];
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_axpy(double* y, const double alpha, const double* x, const int N)
 {
 	using namespace gpu;
+	using namespace gpu::ss_axpy_kernel;
 
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] += alpha * x[i];
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, x, N));
 
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
+	// record the number of floating point oporations
+	flops_blas1 = flops_blas1 + 2 * N;
 }
 
-// computes y = x + alpha*(l-r)
-// y, x, l and r are vectors of length N
-// alpha is a scalar
+namespace gpu
+{
+	namespace ss_add_scaled_diff_kernel
+	{
+		// computes y = x + alpha*(l-r)
+		// y, x, l and r are vectors of length N
+		// alpha is a scalar
+		__global__ void kernel(double* y, const double* x, const double alpha,
+			const double* l, const double* r, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+
+			y[i] = x[i] + alpha * (l[i] - r[i]);
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
-    const double* l, const double* r, const int N)
+	const double* l, const double* r, const int N)
 {
 	using namespace gpu;
+	using namespace ss_add_scaled_diff_kernel;
 
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = x[i] + alpha * (l[i] - r[i]);
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, x, alpha, l, r, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 3 * N;
 }
 
-// computes y = alpha*(l-r)
-// y, l and r are vectors of length N
-// alpha is a scalar
+namespace gpu
+{
+	namespace ss_scaled_diff_kernel
+	{
+		// computes y = alpha*(l-r)
+		// y, l and r are vectors of length N
+		// alpha is a scalar
+		__global__ void kernel(double* y, const double alpha,
+			const double* l, const double* r, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+
+			y[i] = alpha * (l[i] - r[i]);
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_scaled_diff(double* y, const double alpha,
     const double* l, const double* r, const int N)
 {
 	using namespace gpu;
+	using namespace gpu::ss_scaled_diff_kernel;
 
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = alpha * (l[i] - r[i]);
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, l, r, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 2 * N;
 }
 
-// computes y := alpha*x
-// alpha is scalar
-// y and x are vectors on length n
+namespace gpu
+{
+	namespace ss_scale_kernel
+	{
+		// computes y := alpha*x
+		// alpha is scalar
+		// y and x are vectors on length n
+		__global__ void kernel(double* y, const double alpha, double* x, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+
+			y[i] = alpha * x[i];
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_scale(double* y, const double alpha, double* x, const int N)
 {
 	using namespace gpu;
+	using namespace gpu::ss_scale_kernel;
 
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = alpha * x[i];
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, x, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + N;
 }
 
-// computes linear combination of two vectors y := alpha*x + beta*z
-// alpha and beta are scalar
-// y, x and z are vectors on length n
+namespace gpu
+{
+	namespace ss_lcomb_kernel
+	{
+		// computes linear combination of two vectors y := alpha*x + beta*z
+		// alpha and beta are scalar
+		// y, x and z are vectors on length n
+		__global__ void kernel(double* y, const double alpha, double* x, const double beta,
+			const double* z, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+			
+			y[i] = alpha * x[i] + beta * z[i];
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
     const double* z, const int N)
 {
 	using namespace gpu;
+	using namespace gpu::ss_lcomb_kernel;
 
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = alpha * x[i] + beta * z[i];
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, x, beta, z, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 3 * N;
 }
 
-// copy one vector into another y := x
-// x and y are vectors of length N
+namespace gpu
+{
+	namespace ss_copy_kernel
+	{
+		// copy one vector into another y := x
+		// x and y are vectors of length N
+		__global__ void kernel(double* y, const double* x, const int N)
+		{
+			int i = blockDim.x * blockIdx.x + threadIdx.x;
+			if (i >= N) return;
+
+			y[i] = x[i];
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ void ss_copy(double* y, const double* x, const int N)
 {
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = x[i];
+	using namespace gpu;
+	using namespace gpu::ss_copy_kernel;
+
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N, 1, grid, block);
+		grid_block_init = true;
+	}
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, x, N));
 }
 
 // conjugate gradient solver

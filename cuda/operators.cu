@@ -11,87 +11,13 @@
 #include "operators.h"
 #include "stats.h"
 
-#include <thrust/extrema.h>
-
-using namespace thrust::system::cuda::detail;
-
 #define U(j,i)    up[(i) + (j)*nx]
 #define S(j,i)    sp[(i) + (j)*nx]
 #define X(j,i) x_old[(i) + (j)*nx]
 
-namespace operators
+namespace gpu
 {
-	// We redefine dim3 under namespace, because the default one has
-	// constructors, which is not allowed for types device variables
-	// (dim3 is used as device vars type below to keep kernel compute
-	// grid configuration).
-	struct dim3
-	{
-		unsigned int x, y, z;
-		
-		__device__ operator ::dim3()
-		{
-			return ::dim3(x, y, z);
-		}
-	};
-
-	// Use Thrust occupancy calculator to determine the best size of block.
-	template<typename T>
-	__device__ inline size_t get_optimal_szblock(T kernel)
-	{
-		using namespace gpu;
-	
-		struct function_attributes_t attrs;
-		{
-		    cudaFuncAttributes funcAttrs;
-		    CUDA_ERR_CHECK(cudaFuncGetAttributes(&funcAttrs, kernel));
-		    attrs.constSizeBytes = funcAttrs.constSizeBytes;
-		    attrs.localSizeBytes = funcAttrs.localSizeBytes;
-		    attrs.maxThreadsPerBlock = funcAttrs.maxThreadsPerBlock;
-		    attrs.numRegs = funcAttrs.numRegs;
-		    attrs.sharedSizeBytes = funcAttrs.sharedSizeBytes;
-		}
-		struct device_properties_t props;
-		{
-		    props.major = gpuProps.major;
-		    memcpy(&props.maxGridSize, &gpuProps.maxGridSize, sizeof(int) * 3);
-		    props.maxThreadsPerBlock = gpuProps.maxThreadsPerBlock;
-		    props.maxThreadsPerMultiProcessor = gpuProps.maxThreadsPerMultiProcessor;
-		    props.minor = gpuProps.minor;
-		    props.multiProcessorCount = gpuProps.multiProcessorCount;
-		    props.regsPerBlock = gpuProps.regsPerBlock;
-		    props.sharedMemPerBlock = gpuProps.sharedMemPerBlock;
-		    props.warpSize = gpuProps.warpSize;
-		}
-		return block_size_with_maximum_potential_occupancy(attrs, props);
-	}
-
-	template<typename T>
-	__device__ inline void get_optimal_grid_block_config(T kernel,
-		int nx, int ny, dim3& grid, dim3& blocks)
-	{
-		size_t szblock = get_optimal_szblock(kernel);
-
-		grid.x = 1; grid.y = 1; grid.z = 1;
-		blocks.x = 1; blocks.y = 1; blocks.z = 1;
-
-		if (szblock > nx)
-		{
-		    blocks.x = nx;
-		    blocks.y = min(ny, (int)szblock / blocks.x);
-		    grid.y = ny / blocks.y;
-		    if (ny % blocks.y) grid.y++;
-		}
-		else
-		{
-		    blocks.x = szblock;
-		    grid.x = nx / blocks.x;
-		    if (nx % blocks.x) grid.x++;
-		    grid.y = ny;
-		}
-	}
-
-	namespace diffusion_interior_grid_points
+	namespace diffusion_interior_grid_points_kernel
 	{
 		__global__ void kernel(const double* up, double* sp)
 		{
@@ -117,11 +43,11 @@ namespace operators
 						            + dxs * U(j,i) * (1.0 - U(j,i));
 		}
 
-		__device__ dim3 grid, blocks;
+		__device__ dim3 grid, block;
 		__device__ bool grid_block_init = false;
 	}
 
-	namespace diffusion_east_west_boundary_points
+	namespace diffusion_east_west_boundary_points_kernel
 	{
 		__global__ void kernel(const double* up, double* sp)
 		{
@@ -154,11 +80,11 @@ namespace operators
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__device__ dim3 grid, blocks;
+		__device__ dim3 grid, block;
 		__device__ bool grid_block_init = false;
 	}
 
-	namespace diffusion_north_south_boundary_points
+	namespace diffusion_north_south_boundary_points_kernel
 	{
 		__global__ void kernel(const double* up, double* sp)
 		{
@@ -191,11 +117,11 @@ namespace operators
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__device__ dim3 grid, blocks;
+		__device__ dim3 grid, block;
 		__device__ bool grid_block_init = false;
 	}
 
-	namespace diffusion_corner_points
+	namespace diffusion_corner_points_kernel
 	{
 		__global__ void kernel(const double* up, double* sp)
 		{
@@ -253,37 +179,37 @@ namespace operators
 
 		// Launch kernel for parallel processing of interior points.
 		{
-			using namespace diffusion_interior_grid_points;
+			using namespace diffusion_interior_grid_points_kernel;
 			if (!grid_block_init)
 			{
-				get_optimal_grid_block_config(kernel, nx - 2, ny - 2, grid, blocks);
+				get_optimal_grid_block_config(kernel, nx - 2, ny - 2, grid, block);
 				grid_block_init = true;
 			}
-			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, blocks>>>(up, sp));
+			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
 		}
 	
 		// Launch kernels for parallel processing of boundary points.
 		{
-			using namespace diffusion_east_west_boundary_points;
+			using namespace diffusion_east_west_boundary_points_kernel;
 			if (!grid_block_init)
 			{
-				get_optimal_grid_block_config(kernel, 1, ny - 2, grid, blocks);
+				get_optimal_grid_block_config(kernel, 1, ny - 2, grid, block);
 				grid_block_init = true;
 			}
-			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, blocks>>>(up, sp));
+			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
 		}
 		{
-			using namespace diffusion_north_south_boundary_points;
+			using namespace diffusion_north_south_boundary_points_kernel;
 			if (!grid_block_init)
 			{
-				get_optimal_grid_block_config(kernel, nx - 2, 1, grid, blocks);
+				get_optimal_grid_block_config(kernel, nx - 2, 1, grid, block);
 				grid_block_init = true;
 			}
-			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, blocks>>>(up, sp));
+			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
 		}
 	
 		// Launch kernel for single-threaded processing of corner points.
-		CUDA_LAUNCH_ERR_CHECK(diffusion_corner_points::kernel<<<1, 1>>>(up, sp));
+		CUDA_LAUNCH_ERR_CHECK(diffusion_corner_points_kernel::kernel<<<1, 1>>>(up, sp));
 	
 		// Accumulate the flop counts
 		// 8 ops total per point
@@ -294,5 +220,5 @@ namespace operators
 	}
 }
 
-__global__ void diffusion(const double* up, double* sp) { operators::diffusion(up, sp); }
+__global__ void diffusion(const double* up, double* sp) { gpu::diffusion(up, sp); }
 

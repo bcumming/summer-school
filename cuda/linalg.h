@@ -6,13 +6,6 @@
 
 #include "data.h"
 
-// initialize temporary storage fields used by the cg solver
-// I do this here so that the fields are persistent between calls
-// to the CG solver. This is useful if we want to avoid malloc/free calls
-// on the device for the OpenACC implementation (feel free to suggest a better
-// method for doing this)
-__device__ void cg_init(const int N);
-
 ////////////////////////////////////////////////////////////////////////////////
 //  blas level 1 reductions
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,11 +17,6 @@ __device__ double ss_dot(const double* x, const double* y, const int N);
 // computes the 2-norm of x
 // x is a vector on length N
 __device__ double ss_norm2(const double* x, const int N);
-
-// sets entries in a vector to value
-// x is a vector on length N
-// value is th
-__device__ void ss_fill(double* x, const double value, const int N);
 
 ////////////////////////////////////////////////////////////////////////////////
 //  blas level 1 vector-vector operations
@@ -61,10 +49,6 @@ __device__ void ss_scale(double* y, const double alpha, double* x, const int N);
 // y, x and z are vectors on length n
 __device__ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
     const double* z, const int N);
-
-// copy one vector into another y := x
-// x and y are vectors of length N
-__device__ void ss_copy(double* y, const double* x, const int N);
 
 // conjugate gradient solver
 // solve the linear system A*x = b for x
