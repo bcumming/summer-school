@@ -49,9 +49,11 @@ class Field {
         #endif
         free();
         ptr_ = new double[xdim*ydim];
-        fill(0.);
         xdim_ = xdim;
         ydim_ = ydim;
+
+        // do first touch
+        fill(0.);
     }
 
     double*       data()       { return ptr_; }
