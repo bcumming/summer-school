@@ -84,14 +84,71 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
 
 // ==============================================================================
 
-__global__ void ss_axpy_kernel(double* y, const double alpha, const double* x, const int N)
+namespace gpu
 {
-	ss_axpy(y, alpha, x, N);
-}
+	__device__ double residual;
+	__device__ int cg_converged;
 
-__global__ void ss_norm2_kernel(const double* x, const int N, double* result)
-{
-	*result = ss_norm2(x, N);
+	__global__ void main()
+	{
+		using namespace gpu;
+
+		int N  = options.N;
+		int nt = options.nt;
+	
+		// main timeloop
+		double tolerance = 1.e-6;
+		int timestep;
+		for (timestep = 1; timestep <= nt; timestep++)
+		{
+		    // set x_new and x_old to be the solution
+		    ss_copy(x_old, x_new, N);
+
+		    double residual;
+		    int    converged = 0;
+		    int    it = 1;
+		    for ( ; it <= 50; it++)
+		    {
+		        // compute residual : requires both x_new and x_old
+		        diffusion(x_new, b);
+		        residual = ss_norm2(b, N);
+
+		        // check for convergence
+		        if (residual < tolerance)
+		        {
+		            converged = 1;
+		            break;
+		        }
+
+		        // solve linear system to get -deltax
+		        cg_converged = 0;
+		        ss_cg(deltax, b, 200, tolerance, &cg_converged);
+
+		        // check that the CG solver converged
+		        if (!cg_converged) break;
+
+		        // update solution
+		        ss_axpy(x_new, -1.0, deltax, N);
+
+		        // print control sum of x_new
+		        if (timestep % 50 == 0)
+		        {
+		        	double sum = ss_sum(x_new, N);
+		            printf("sum = %f\n", sum);
+				}
+		    }
+		    iters_newton += it;
+
+		    // output some statistics
+		    if (converged && verbose_output)
+		        printf("step %d required %d iterations for residual %E\n", timestep, it, residual);
+		    if (!converged)
+		    {
+		        printf("step %d ERROR : nonlinear iterations failed to converge\n", timestep);
+		        break;
+		    }
+		}
+	}
 }
 
 int main(int argc, char* argv[])
@@ -167,89 +224,20 @@ int main(int argc, char* argv[])
 
 	CUDA_ERR_CHECK(cudaMemcpyToSymbol(gpu::gpuProps, &cpu::gpuProps,
 		sizeof(cudaDeviceProp)));
-	
-	using namespace cpu;
 
     // start timer
     double timespent = -omp_get_wtime();
-
-    // main timeloop
-    double tolerance = 1.e-6;
-    int timestep;
-    for (timestep = 1; timestep <= nt; timestep++)
-    {
-        // set x_new and x_old to be the solution
-        CUDA_ERR_CHECK(cudaMemcpy(get_device_value(gpu::x_old), get_device_value(gpu::x_new), sizeof(double) * N,
-        	cudaMemcpyDeviceToDevice));
-
-        double residual;
-        int    converged = 0;
-        int    it = 1;
-        for ( ; it <= 50; it++)
-        {
-            // compute residual : requires both x_new and x_old
-            CUDA_LAUNCH_ERR_CHECK(diffusion<<<1, 1>>>(get_device_value(gpu::x_new), get_device_value(gpu::b)));
-            CUDA_ERR_CHECK(cudaDeviceSynchronize());
-            double* residual_gpu;
-            CUDA_ERR_CHECK(cudaMalloc(&residual_gpu, sizeof(double)));
-            CUDA_LAUNCH_ERR_CHECK(ss_norm2_kernel<<<1, 1>>>(get_device_value(gpu::b), N, residual_gpu));
-            CUDA_ERR_CHECK(cudaDeviceSynchronize());
-            CUDA_ERR_CHECK(cudaMemcpy(&residual, residual_gpu, sizeof(double), cudaMemcpyDeviceToHost));
-            CUDA_ERR_CHECK(cudaFree(residual_gpu));
-
-            // check for convergence
-            if (residual < tolerance)
-            {
-                converged = 1;
-                break;
-            }
-
-            // solve linear system to get -deltax
-            int cg_converged = 0;
-            int* cg_converged_gpu;
-            CUDA_ERR_CHECK(cudaMalloc(&cg_converged_gpu, sizeof(int)));
-            CUDA_ERR_CHECK(cudaMemset(cg_converged_gpu, 0, sizeof(int)));
-            CUDA_LAUNCH_ERR_CHECK(ss_cg<<<1, 1>>>(get_device_value(gpu::deltax), get_device_value(gpu::b), 200, tolerance, cg_converged_gpu));
-            CUDA_ERR_CHECK(cudaDeviceSynchronize());
-            CUDA_ERR_CHECK(cudaMemcpy(&cg_converged, cg_converged_gpu, sizeof(int), cudaMemcpyDeviceToHost));
-
-            // check that the CG solver converged
-            if (!cg_converged) break;
-
-            // update solution
-            CUDA_LAUNCH_ERR_CHECK(ss_axpy_kernel<<<1, 1>>>(get_device_value(gpu::x_new), -1.0, get_device_value(gpu::deltax), N));
-            CUDA_ERR_CHECK(cudaDeviceSynchronize());
-
-			// offload x_new
-			CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, get_device_value(gpu::x_new), sizeof(double) * nx * ny, cudaMemcpyDeviceToHost));
-
-            // print control sum of x_new
-            if (timestep % 50 == 0)
-            {
-                double sum = 0.0;
-                for (int i = 0; i < N; i++)
-                    sum += x_new[i];
-                printf("sum = %f\n", sum);
-            }
-        }
-        iters_newton += it;
-
-        // output some statistics
-        //if (converged && verbose_output)
-        if (converged && verbose_output)
-            printf("step %d required %d iterations for residual %E\n", timestep, it, residual);
-        if (!converged)
-        {
-            fprintf(stderr, "step %d ERROR : nonlinear iterations failed to converge\n", timestep);
-            break;
-        }
-    }
+    
+    gpu::main<<<1, 1>>>();
+    
+    CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, get_device_value(gpu::x_new), sizeof(double) * N, cudaMemcpyDeviceToHost));
 
     // get times
     timespent += omp_get_wtime();
-    flops_diff += get_device_value(gpu::flops_diff);
-    flops_blas1 += get_device_value(gpu::flops_blas1);
-    unsigned long long flops_total = flops_diff + flops_blas1;
+    unsigned long long flops_total =
+    	get_device_value(gpu::flops_diff) + get_device_value(gpu::flops_blas1);
+
+	using namespace cpu;
 
     ////////////////////////////////////////////////////////////////////
     // write final solution to BOV file for visualization
@@ -280,9 +268,8 @@ int main(int argc, char* argv[])
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
     printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
-    iters_cg = get_device_value(gpu::iters_cg);
-    printf("%d conjugate gradient iterations\n", (int)iters_cg);
-    printf("%d newton iterations\n", (int)iters_newton);
+    printf("%u conjugate gradient iterations\n", get_device_value(gpu::iters_cg));
+    printf("%u newton iterations\n", get_device_value(gpu::iters_newton));
     printf("--------------------------------------------------------------------------------\n");
 
     // deallocate global fields

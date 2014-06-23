@@ -11,8 +11,6 @@
 
 #include <thrust/extrema.h>
 
-__global__ void diffusion(const double* up, double* sp);
-
 #define cudaMallocDevice(dst, size) {                                                                          \
 	double* memPtr = NULL;                                                                                     \
 	CUDA_ERR_CHECK(cudaMalloc(&memPtr, size));                                                                 \
@@ -24,6 +22,8 @@ __global__ void diffusion(const double* up, double* sp);
 
 namespace gpu
 {
+	__device__ void diffusion(const double* up, double* sp);
+
 	// We redefine dim3 under namespace, because the default one has
 	// constructors, which is not allowed for types device variables
 	// (dim3 is used as device vars type below to keep kernel compute

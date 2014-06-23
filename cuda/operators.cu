@@ -220,5 +220,3 @@ namespace gpu
 	}
 }
 
-__global__ void diffusion(const double* up, double* sp) { gpu::diffusion(up, sp); }
-
