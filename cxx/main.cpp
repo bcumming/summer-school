@@ -237,7 +237,7 @@ int main(int argc, char* argv[])
               << std::endl;
     std::cout << "simulation took " << timespent << " seconds" << std::endl;
     std::cout << int(iters_cg) << " conjugate gradient iterations, at rate of "
-              << float(iters_newton/timespent) << " iters/second" << std::endl;
+              << float(iters_cg)/timespent << " iters/second" << std::endl;
     std::cout << iters_newton << " newton iterations" << std::endl;
     std::cout << "--------------------------------------------------------------------------------"
               << std::endl;
