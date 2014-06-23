@@ -1,4 +1,4 @@
-//******************************************
+// *****************************************
 // operators.f90
 // based on min-app code written by Oliver Fuhrer, MeteoSwiss
 // modified by Ben Cumming, CSCS

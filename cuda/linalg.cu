@@ -39,21 +39,91 @@ namespace
 //  blas level 1 reductions
 ////////////////////////////////////////////////////////////////////////////////
 
-// computes the inner product of x and y
-// x and y are vectors on length N
+namespace gpu
+{
+	namespace ss_dot_kernel
+	{
+		// computes the inner product of x and y
+		// x and y are vectors on length N
+		__global__ void kernel(const double* x, const double* y, double* result)
+		{
+			extern __shared__ double shared[];
+
+			// Each block hanldes (2 * blockDim.x) elements of reduction.
+			int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+
+			// Load product of first 2 pairs into shared memory:
+			// idx-th and (idx + blockDim.x)-th.
+			shared[threadIdx.x] = x[i] * y[i] + x[i + blockDim.x] * y[i + blockDim.x];
+	
+			__syncthreads();
+
+			// Reduce pairs in shared memory.
+			for (int s = blockDim.x / 2; s > 32; s >>= 1)
+			{
+				if (threadIdx.x < s)
+					shared[threadIdx.x] += shared[threadIdx.x + s];
+		
+				__syncthreads();
+			}
+	
+			// Unroll last 32 iterations of loop.
+			// There is no need for synchronizations, since all accesses
+			// are within single warp.
+			if (threadIdx.x < 32)
+			{
+				volatile double* vshared = shared;
+				vshared[threadIdx.x] += vshared[threadIdx.x + 32];
+				vshared[threadIdx.x] += vshared[threadIdx.x + 16];
+				vshared[threadIdx.x] += vshared[threadIdx.x +  8];
+				vshared[threadIdx.x] += vshared[threadIdx.x +  4];
+				vshared[threadIdx.x] += vshared[threadIdx.x +  2];
+				vshared[threadIdx.x] += vshared[threadIdx.x +  1];
+			}
+
+			// The first thread writes the result.
+			if (threadIdx.x == 0)
+				result[blockIdx.x] = shared[0];
+		}
+
+		__device__ dim3 grid, block;
+		__device__ bool grid_block_init = false;
+	}
+}
+
 __device__ double ss_dot(const double* x, const double* y, const int N)
 {
 	using namespace gpu;
+	using namespace gpu::ss_dot_kernel;
 
-    double result = 0;
-	int i;
-    for (i = 0; i < N; i++)
-        result += x[i] * y[i];
+	if (!grid_block_init)
+	{
+		get_optimal_grid_block_config(kernel, N / 2, 1, grid, block);
+		grid_block_init = true;
+	}
+	double* result;
+	CUDA_ERR_CHECK(cudaMalloc(&result, sizeof(double) * grid.x));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block, block.x * sizeof(double)>>>(x, y, result));
+	CUDA_ERR_CHECK(cudaDeviceSynchronize());
+	double result1 = result[0];
+	for (int i = 1; i < grid.x; i++)
+		result1 += result[i];
+	CUDA_ERR_CHECK(cudaFree(result));
+	
+    double result2 = 0;
+    for (int i = 0; i < N; i++)
+        result2 += x[i] * y[i];
+    
+    if (fabs(result1 - result2) > 0.1)
+    {
+    	printf("%f != %f\n", result1, result2);
+    	assert(fabs(result1 - result2) > 0.1);
+    }
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 2 * N;
     
-    return result;
+    return result1;
 }
 
 // computes the 2-norm of x
