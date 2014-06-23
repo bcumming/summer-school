@@ -83,6 +83,8 @@ class Field {
         assert(xdim>0 && ydim>0);
         #endif
         ptr_ = new double[xdim*ydim];
+        // do first touch
+        fill(0.);
     };
 
     // destructor
@@ -96,11 +98,11 @@ class Field {
         #endif
         free();
         ptr_ = new double[xdim*ydim];
-        #ifdef DEBUG
-        assert(xdim>0 && ydim>0);
-        #endif
         xdim_ = xdim;
         ydim_ = ydim;
+
+        // do first touch
+        fill(0.);
     }
 
     double*       data()       { return ptr_; }
@@ -139,6 +141,13 @@ class Field {
     int length() const { return xdim_*ydim_; }
 
     private:
+
+    // set to a constant value
+    void fill(double val) {
+        #pragma omp parallel for
+        for(int i=0; i<xdim_*ydim_; ++i)
+            ptr_[i] = val;
+    }
 
     void free() {
         if(ptr_) delete[] ptr_;
