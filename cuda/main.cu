@@ -108,7 +108,7 @@ namespace gpu
 	    double* deltax = (double*)malloc(sizeof(double) * N);
 
 		// set dirichlet boundary conditions to 0 all around
-		ss_fill(x_old,  0, nx * ny);
+		ss_fill(x_old,  0, N);
 		ss_fill(bndN,   0, nx);
 		ss_fill(bndS,   0, nx);
 		ss_fill(bndE,   0, ny);

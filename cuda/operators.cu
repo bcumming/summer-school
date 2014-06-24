@@ -123,7 +123,7 @@ namespace gpu
 
 	namespace diffusion_corner_points_kernel
 	{
-		__global__ void kernel(const double* up, double* sp)
+		__device__ void kernel(const double* up, double* sp)
 		{
 			using namespace gpu;
 
@@ -208,8 +208,8 @@ namespace gpu
 			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
 		}
 	
-		// Launch kernel for single-threaded processing of corner points.
-		CUDA_LAUNCH_ERR_CHECK(diffusion_corner_points_kernel::kernel<<<1, 1>>>(up, sp));
+		// Finally, single-threaded processing of corner points.
+		diffusion_corner_points_kernel::kernel(up, sp);
 	
 		// Accumulate the flop counts
 		// 8 ops total per point
