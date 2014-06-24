@@ -89,7 +89,7 @@ namespace gpu
 	__device__ double residual;
 	__device__ int cg_converged;
 
-	__global__ void main()
+	__global__ void main(double* x_new)
 	{
 		using namespace gpu;
 
@@ -170,10 +170,10 @@ int main(int argc, char* argv[])
     printf("========================================================================\n");
 
     // allocate global fields
+    double* cpu_x_new  = (double*)malloc(sizeof(double) * nx * ny);
     {
     	using namespace cpu;
-    	
-		x_new  = (double*) malloc(sizeof(double) * nx * ny);
+
 		x_old  = (double*) malloc(sizeof(double) * nx * ny); 
 		bndN   = (double*) malloc(sizeof(double) * nx);
 		bndS   = (double*) malloc(sizeof(double) * nx); 
@@ -193,25 +193,22 @@ int main(int argc, char* argv[])
 		// set the initial condition
 		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
 		// no larger than 1/8 of both xdim and ydim
-		memset(x_new, 0, sizeof(double) * nx * ny);
+		memset(cpu_x_new, 0, sizeof(double) * nx * ny);
 		double xc = 1.0 / 4.0;
 		double yc = (ny - 1) * options.dx / 4;
 		double radius = fmin(xc, yc) / 2.0;
-		int i,j;
-		//
-		for (j = 0; j < ny; j++)
+		for (int j = 0; j < ny; j++)
 		{
 		    double y = (j - 1) * options.dx;
-		    for (i = 0; i < nx; i++)
+		    for (int i = 0; i < nx; i++)
 		    {
 		        double x = (i - 1) * options.dx;
 		        if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-		            x_new[i+j*nx] = 0.1;
+		            cpu_x_new[i + j * nx] = 0.1;
 		    }
 		}
 	}
    	
-	cudaMallocDevice(x_new,  sizeof(double) * nx * ny);
 	cudaMallocDevice(x_old,  sizeof(double) * nx * ny);
 	cudaMallocDevice(bndN,   sizeof(double) * nx);
 	cudaMallocDevice(bndS,   sizeof(double) * nx);
@@ -226,13 +223,18 @@ int main(int argc, char* argv[])
 		CUDA_ERR_CHECK(cudaMemcpyToSymbol(gpu::props, &props,
 			sizeof(cudaDeviceProp)));
 	}
+	
+	// copy initial solution to GPU
+	double* gpu_x_new;
+	CUDA_ERR_CHECK(cudaMalloc(&gpu_x_new, sizeof(double) * nx * ny));
+	CUDA_ERR_CHECK(cudaMemcpy(gpu_x_new, cpu_x_new, sizeof(double) * nx * ny, cudaMemcpyHostToDevice));
 
     // start timer
     double timespent = -omp_get_wtime();
     
-    gpu::main<<<1, 1>>>();
+    gpu::main<<<1, 1>>>(gpu_x_new);
     
-    CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, gpu::get_value(gpu::x_new), sizeof(double) * N, cudaMemcpyDeviceToHost));
+    CUDA_ERR_CHECK(cudaMemcpy(cpu_x_new, gpu_x_new, sizeof(double) * N, cudaMemcpyDeviceToHost));
 
     // get times
     timespent += omp_get_wtime();
@@ -247,7 +249,7 @@ int main(int argc, char* argv[])
     // binary data
     {
         FILE* output = fopen("output.bin", "w");
-        fwrite(x_new, sizeof(double), nx * ny, output);
+        fwrite(cpu_x_new, sizeof(double), nx * ny, output);
         fclose(output);
     }
 
@@ -274,12 +276,13 @@ int main(int argc, char* argv[])
     printf("--------------------------------------------------------------------------------\n");
 
     // deallocate global fields
-    free (x_new);
-    free (x_old);
-    free (bndN);
-    free (bndS);
-    free (bndE);
-    free (bndW);
+    CUDA_ERR_CHECK(cudaFree(gpu_x_new));
+    free(cpu_x_new);
+    free(x_old);
+    free(bndN);
+    free(bndS);
+    free(bndE);
+    free(bndW);
 
     printf("Goodbye!\n");
 
