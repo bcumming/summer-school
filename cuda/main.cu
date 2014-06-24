@@ -98,14 +98,16 @@ namespace gpu
 		int N  = options.N;
 		int nt = options.nt;
 
-		x_old  = (double*)malloc(sizeof(double) * nx * ny); 
-		bndN   = (double*)malloc(sizeof(double) * nx);
-		bndS   = (double*)malloc(sizeof(double) * nx); 
-		bndE   = (double*)malloc(sizeof(double) * ny); 
-		bndW   = (double*)malloc(sizeof(double) * ny); 
+		CUDA_ERR_CHECK(cudaMalloc(&x_old,  sizeof(double) * nx * ny));
+		CUDA_ERR_CHECK(cudaMalloc(&bndN,   sizeof(double) * nx));
+		CUDA_ERR_CHECK(cudaMalloc(&bndS,   sizeof(double) * nx));
+		CUDA_ERR_CHECK(cudaMalloc(&bndE,   sizeof(double) * ny));
+		CUDA_ERR_CHECK(cudaMalloc(&bndW,   sizeof(double) * ny));
 
-	    double* b      = (double*)malloc(sizeof(double) * N);
-	    double* deltax = (double*)malloc(sizeof(double) * N);
+	    double* b;
+	    CUDA_ERR_CHECK(cudaMalloc(&b,      sizeof(double) * N));
+	    double* deltax;
+	    CUDA_ERR_CHECK(cudaMalloc(&deltax, sizeof(double) * N));
 
 		// set dirichlet boundary conditions to 0 all around
 		ss_fill(x_old,  0, N);
@@ -226,9 +228,6 @@ int main(int argc, char* argv[])
 	double* gpu_x_new;
 	CUDA_ERR_CHECK(cudaMalloc(&gpu_x_new, sizeof(double) * nx * ny));
 	CUDA_ERR_CHECK(cudaMemcpy(gpu_x_new, cpu_x_new, sizeof(double) * nx * ny, cudaMemcpyHostToDevice));
-
-    // start timer
-    double timespent = -omp_get_wtime();
     
     // Calibrating kernels compute grids for the given problem dimensions.
     {
@@ -246,6 +245,13 @@ int main(int argc, char* argv[])
 		determine_optimal_grid_block_config(ss_lcomb, N, 1);
 		determine_optimal_grid_block_config(ss_copy, N, 1);
 	}
+
+	size_t freeGlobalMem, totalGlobalMem;
+	CUDA_ERR_CHECK(cudaMemGetInfo(&freeGlobalMem, &totalGlobalMem));
+	CUDA_ERR_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, freeGlobalMem));
+
+    // start timer
+    double timespent = -omp_get_wtime();
     
     gpu::main<<<1, 1>>>(gpu_x_new);
     
