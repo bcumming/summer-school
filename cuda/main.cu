@@ -69,7 +69,7 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
     }
 
     // store the parameters
-    options->N = options->nx*options->ny;
+    options->N = options->nx * options->ny;
 
     // compute timestep size
     options->dt = t / options->nt;
@@ -93,8 +93,27 @@ namespace gpu
 	{
 		using namespace gpu;
 
+		int nx = options.nx;
+		int ny = options.ny;
 		int N  = options.N;
 		int nt = options.nt;
+
+		x_old  = (double*)malloc(sizeof(double) * nx * ny); 
+		bndN   = (double*)malloc(sizeof(double) * nx);
+		bndS   = (double*)malloc(sizeof(double) * nx); 
+		bndE   = (double*)malloc(sizeof(double) * ny); 
+		bndW   = (double*)malloc(sizeof(double) * ny); 
+
+	    double* b      = (double*)malloc(sizeof(double) * N);
+	    double* deltax = (double*)malloc(sizeof(double) * N);
+
+		// set dirichlet boundary conditions to 0 all around
+		ss_fill(x_old,  0, nx * ny);
+		ss_fill(bndN,   0, nx);
+		ss_fill(bndS,   0, nx);
+		ss_fill(bndE,   0, ny);
+		ss_fill(bndW,   0, ny);
+		ss_fill(deltax, 0, N);
 	
 		// main timeloop
 		double tolerance = 1.e-6;
@@ -148,6 +167,14 @@ namespace gpu
 		        break;
 		    }
 		}
+
+		free(x_old);
+		free(bndN);
+		free(bndS);
+		free(bndE);
+		free(bndW);
+		free(b);
+		free(deltax);
 	}
 }
 
@@ -160,7 +187,6 @@ int main(int argc, char* argv[])
 
 	int nx = cpu::options.nx;
 	int ny = cpu::options.ny;
-	int N  = cpu::options.N;
 	int nt = cpu::options.nt;
 
     printf("========================================================================\n");
@@ -173,22 +199,6 @@ int main(int argc, char* argv[])
     double* cpu_x_new  = (double*)malloc(sizeof(double) * nx * ny);
     {
     	using namespace cpu;
-
-		x_old  = (double*) malloc(sizeof(double) * nx * ny); 
-		bndN   = (double*) malloc(sizeof(double) * nx);
-		bndS   = (double*) malloc(sizeof(double) * nx); 
-		bndE   = (double*) malloc(sizeof(double) * ny); 
-		bndW   = (double*) malloc(sizeof(double) * ny); 
-	    b      = (double*) malloc(sizeof(double) * N);
-	    deltax = (double*) malloc(sizeof(double) * N);
-
-		// set dirichlet boundary conditions to 0 all around
-		memset(bndN,   0, sizeof(double) * nx);
-		memset(bndS,   0, sizeof(double) * nx);
-		memset(bndE,   0, sizeof(double) * ny);
-		memset(bndW,   0, sizeof(double) * ny);
-		memset(b,      0, sizeof(double) * N);
-		memset(deltax, 0, sizeof(double) * N);
 
 		// set the initial condition
 		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
@@ -208,14 +218,6 @@ int main(int argc, char* argv[])
 		    }
 		}
 	}
-   	
-	cudaMallocDevice(x_old,  sizeof(double) * nx * ny);
-	cudaMallocDevice(bndN,   sizeof(double) * nx);
-	cudaMallocDevice(bndS,   sizeof(double) * nx);
-	cudaMallocDevice(bndE,   sizeof(double) * ny);
-	cudaMallocDevice(bndW,   sizeof(double) * ny);
-	cudaMallocDevice(b,      sizeof(double) * N);
-	cudaMallocDevice(deltax, sizeof(double) * N);
 
 	{
 		cudaDeviceProp props;
@@ -234,7 +236,7 @@ int main(int argc, char* argv[])
     
     gpu::main<<<1, 1>>>(gpu_x_new);
     
-    CUDA_ERR_CHECK(cudaMemcpy(cpu_x_new, gpu_x_new, sizeof(double) * N, cudaMemcpyDeviceToHost));
+    CUDA_ERR_CHECK(cudaMemcpy(cpu_x_new, gpu_x_new, sizeof(double) * nx * ny, cudaMemcpyDeviceToHost));
 
     // get times
     timespent += omp_get_wtime();
@@ -278,11 +280,6 @@ int main(int argc, char* argv[])
     // deallocate global fields
     CUDA_ERR_CHECK(cudaFree(gpu_x_new));
     free(cpu_x_new);
-    free(x_old);
-    free(bndN);
-    free(bndS);
-    free(bndE);
-    free(bndW);
 
     printf("Goodbye!\n");
 

@@ -23,13 +23,13 @@ namespace
 	// method for doing this)
 	__device__ void cg_init(const int N)
 	{
-		CUDA_ERR_CHECK(cudaMalloc(&Ap,    sizeof(double) * N));
-		CUDA_ERR_CHECK(cudaMalloc(&r,     sizeof(double) * N)); 
-		CUDA_ERR_CHECK(cudaMalloc(&p,     sizeof(double) * N));
-		CUDA_ERR_CHECK(cudaMalloc(&Fx,    sizeof(double) * N));
-		CUDA_ERR_CHECK(cudaMalloc(&Fxold, sizeof(double) * N));
-		CUDA_ERR_CHECK(cudaMalloc(&v,     sizeof(double) * N));
-		CUDA_ERR_CHECK(cudaMalloc(&xold,  sizeof(double) * N));
+		Ap    = (double*)malloc(sizeof(double) * N);
+		r     = (double*)malloc(sizeof(double) * N); 
+		p     = (double*)malloc(sizeof(double) * N);
+		Fx    = (double*)malloc(sizeof(double) * N);
+		Fxold = (double*)malloc(sizeof(double) * N);
+		v     = (double*)malloc(sizeof(double) * N);
+		xold  = (double*)malloc(sizeof(double) * N);
 
 		cg_initialized = 1;
 	}

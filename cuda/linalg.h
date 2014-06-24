@@ -22,6 +22,11 @@ __device__ double ss_sum(const double* x, const int N);
 // x is a vector of length N
 __device__ double ss_norm2(const double* x, const int N);
 
+// sets entries in a vector to value
+// x is a vector of length N
+// value is th
+__device__ void ss_fill(double* x, const double value, const int N);
+
 ////////////////////////////////////////////////////////////////////////////////
 //  blas level 1 vector-vector operations
 ////////////////////////////////////////////////////////////////////////////////
