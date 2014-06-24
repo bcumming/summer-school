@@ -22,8 +22,6 @@ namespace cpu
 	extern double *b, *deltax;
 
 	extern struct discretization_t options;
-
-	extern cudaDeviceProp gpuProps;
 }
 
 namespace gpu
@@ -35,7 +33,7 @@ namespace gpu
 
 	extern __constant__ struct discretization_t options;
 	
-	extern __constant__ cudaDeviceProp gpuProps;
+	extern __constant__ cudaDeviceProp props;
 }
 
 #endif // DATA_H

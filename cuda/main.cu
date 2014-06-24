@@ -209,8 +209,6 @@ int main(int argc, char* argv[])
 		            x_new[i+j*nx] = 0.1;
 		    }
 		}
-		
-	    CUDA_ERR_CHECK(cudaGetDeviceProperties(&gpuProps, 0));
 	}
    	
 	cudaMallocDevice(x_new,  sizeof(double) * nx * ny);
@@ -222,8 +220,12 @@ int main(int argc, char* argv[])
 	cudaMallocDevice(b,      sizeof(double) * N);
 	cudaMallocDevice(deltax, sizeof(double) * N);
 
-	CUDA_ERR_CHECK(cudaMemcpyToSymbol(gpu::gpuProps, &cpu::gpuProps,
-		sizeof(cudaDeviceProp)));
+	{
+		cudaDeviceProp props;
+    	CUDA_ERR_CHECK(cudaGetDeviceProperties(&props, 0));
+		CUDA_ERR_CHECK(cudaMemcpyToSymbol(gpu::props, &props,
+			sizeof(cudaDeviceProp)));
+	}
 
     // start timer
     double timespent = -omp_get_wtime();

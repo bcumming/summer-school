@@ -57,15 +57,15 @@ namespace gpu
 		}
 		struct device_properties_t props;
 		{
-			props.major = gpuProps.major;
-			memcpy(&props.maxGridSize, &gpuProps.maxGridSize, sizeof(int) * 3);
-			props.maxThreadsPerBlock = gpuProps.maxThreadsPerBlock;
-			props.maxThreadsPerMultiProcessor = gpuProps.maxThreadsPerMultiProcessor;
-			props.minor = gpuProps.minor;
-			props.multiProcessorCount = gpuProps.multiProcessorCount;
-			props.regsPerBlock = gpuProps.regsPerBlock;
-			props.sharedMemPerBlock = gpuProps.sharedMemPerBlock;
-			props.warpSize = gpuProps.warpSize;
+			props.major = gpu::props.major;
+			memcpy(&props.maxGridSize, &gpu::props.maxGridSize, sizeof(int) * 3);
+			props.maxThreadsPerBlock = gpu::props.maxThreadsPerBlock;
+			props.maxThreadsPerMultiProcessor = gpu::props.maxThreadsPerMultiProcessor;
+			props.minor = gpu::props.minor;
+			props.multiProcessorCount = gpu::props.multiProcessorCount;
+			props.regsPerBlock = gpu::props.regsPerBlock;
+			props.sharedMemPerBlock = gpu::props.sharedMemPerBlock;
+			props.warpSize = gpu::props.warpSize;
 		}
 		return block_size_with_maximum_potential_occupancy(attrs, props);
 	}
