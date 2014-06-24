@@ -105,6 +105,16 @@ namespace gpu
 		}
 	}
 
+	#define determine_optimal_grid_block_config(kernel_name, nx, ny) \
+	{ \
+		{ \
+			using namespace gpu::kernel_name##_kernel; \
+			gpu::config_t c; \
+			gpu::get_optimal_grid_block_config(kernel, nx, ny, &c.grid, &c.block); \
+			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(gpu::config_t))); \
+		} \
+	}
+
 	template<typename T>
 	inline T get_value(T& var)
 	{

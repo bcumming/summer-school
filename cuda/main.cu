@@ -232,85 +232,19 @@ int main(int argc, char* argv[])
     
     // Calibrating kernels compute grids for the given problem dimensions.
     {
-    	using namespace gpu;
-    	{
-			using namespace diffusion_interior_grid_points_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, nx - 2, ny - 2, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace diffusion_east_west_boundary_points_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, 1, ny - 2, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace diffusion_north_south_boundary_points_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, nx - 2, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_dot_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N / 2, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_sum_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N / 2, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_norm2_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N / 2, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_fill_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_axpy_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace ss_add_scaled_diff_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_scaled_diff_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_scale_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_lcomb_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
-		{
-			using namespace gpu::ss_copy_kernel;
-			config_t c;
-			get_optimal_grid_block_config(kernel, N, 1, &c.grid, &c.block);
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(config_t)));
-		}
+    	determine_optimal_grid_block_config(diffusion_interior_grid_points, nx - 2, ny - 2);
+    	determine_optimal_grid_block_config(diffusion_east_west_boundary_points, 1, ny - 2);
+		determine_optimal_grid_block_config(diffusion_north_south_boundary_points, nx - 2, 1);
+		determine_optimal_grid_block_config(ss_dot, N / 2, 1);
+		determine_optimal_grid_block_config(ss_sum, N / 2, 1);
+		determine_optimal_grid_block_config(ss_norm2, N / 2, 1);
+		determine_optimal_grid_block_config(ss_fill, N, 1);
+		determine_optimal_grid_block_config(ss_axpy, N, 1);
+		determine_optimal_grid_block_config(ss_add_scaled_diff, N, 1);
+		determine_optimal_grid_block_config(ss_scaled_diff, N, 1);
+		determine_optimal_grid_block_config(ss_scale, N, 1);
+		determine_optimal_grid_block_config(ss_lcomb, N, 1);
+		determine_optimal_grid_block_config(ss_copy, N, 1);
 	}
     
     gpu::main<<<1, 1>>>(gpu_x_new);
