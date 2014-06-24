@@ -94,16 +94,16 @@ namespace gpu
 			grid.y = ny;
 		}
 	}
-}
 
-template<typename T>
-inline T get_device_value(T& var)
-{
-	T* ptr;
-	CUDA_ERR_CHECK(cudaGetSymbolAddress((void**)&ptr, var));
-	T value;
-	CUDA_ERR_CHECK(cudaMemcpy(&value, ptr, sizeof(T), cudaMemcpyDeviceToHost));
-	return value;
+	template<typename T>
+	inline T get_value(T& var)
+	{
+		T* ptr;
+		CUDA_ERR_CHECK(cudaGetSymbolAddress((void**)&ptr, var));
+		T value;
+		CUDA_ERR_CHECK(cudaMemcpy(&value, ptr, sizeof(T), cudaMemcpyDeviceToHost));
+		return value;
+	}
 }
 
 #endif // OPERATORS_H

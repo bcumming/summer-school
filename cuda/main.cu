@@ -230,12 +230,11 @@ int main(int argc, char* argv[])
     
     gpu::main<<<1, 1>>>();
     
-    CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, get_device_value(gpu::x_new), sizeof(double) * N, cudaMemcpyDeviceToHost));
+    CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, gpu::get_value(gpu::x_new), sizeof(double) * N, cudaMemcpyDeviceToHost));
 
     // get times
     timespent += omp_get_wtime();
-    unsigned long long flops_total =
-    	get_device_value(gpu::flops_diff) + get_device_value(gpu::flops_blas1);
+    unsigned long long flops_total = gpu::get_value(gpu::flops_diff) + gpu::get_value(gpu::flops_blas1);
 
 	using namespace cpu;
 
@@ -268,8 +267,8 @@ int main(int argc, char* argv[])
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
     printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
-    printf("%u conjugate gradient iterations\n", get_device_value(gpu::iters_cg));
-    printf("%u newton iterations\n", get_device_value(gpu::iters_newton));
+    printf("%u conjugate gradient iterations\n", gpu::get_value(gpu::iters_cg));
+    printf("%u newton iterations\n", gpu::get_value(gpu::iters_newton));
     printf("--------------------------------------------------------------------------------\n");
 
     // deallocate global fields
