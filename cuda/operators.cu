@@ -43,8 +43,7 @@ namespace gpu
 						            + dxs * U(j,i) * (1.0 - U(j,i));
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 
 	namespace diffusion_east_west_boundary_points_kernel
@@ -80,8 +79,7 @@ namespace gpu
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 
 	namespace diffusion_north_south_boundary_points_kernel
@@ -117,13 +115,12 @@ namespace gpu
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 
 	namespace diffusion_corner_points_kernel
 	{
-		__device__ void kernel(const double* up, double* sp)
+		inline __device__ void kernel(const double* up, double* sp)
 		{
 			using namespace gpu;
 
@@ -174,38 +171,20 @@ namespace gpu
 	{
 		using namespace gpu;
 
-		int nx = options.nx;
-		int ny = options.ny;
-
 		// Launch kernel for parallel processing of interior points.
 		{
 			using namespace diffusion_interior_grid_points_kernel;
-			if (!grid_block_init)
-			{
-				get_optimal_grid_block_config(kernel, nx - 2, ny - 2, grid, block);
-				grid_block_init = true;
-			}
-			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
+			CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(up, sp));
 		}
 	
 		// Launch kernels for parallel processing of boundary points.
 		{
 			using namespace diffusion_east_west_boundary_points_kernel;
-			if (!grid_block_init)
-			{
-				get_optimal_grid_block_config(kernel, 1, ny - 2, grid, block);
-				grid_block_init = true;
-			}
-			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
+			CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(up, sp));
 		}
 		{
 			using namespace diffusion_north_south_boundary_points_kernel;
-			if (!grid_block_init)
-			{
-				get_optimal_grid_block_config(kernel, nx - 2, 1, grid, block);
-				grid_block_init = true;
-			}
-			CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(up, sp));
+			CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(up, sp));
 		}
 	
 		// Finally, single-threaded processing of corner points.

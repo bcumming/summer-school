@@ -65,6 +65,105 @@ __device__ void ss_copy(double* y, const double* x, const int N);
 
 namespace gpu
 {
+	namespace ss_dot_kernel
+	{
+		// computes the inner product of x and y
+		// x and y are vectors of length N
+		__global__ void kernel(const double* x, const double* y, double* result);
+		
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_sum_kernel
+	{
+		// computes the sum of x elements
+		// x is a vector of length N
+		__global__ void kernel(const double* x, double* result);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_norm2_kernel
+	{
+		// computes the 2-norm of x
+		// x is a vector of length N
+		__global__ void kernel(const double* x, double* result);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_fill_kernel
+	{
+		// sets entries in a vector to value
+		// x is a vector of length N
+		// value is th
+		__global__ void kernel(double* x, const double value, const int N);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_axpy_kernel
+	{
+		// computes y := alpha*x + y
+		// x and y are vectors of length N
+		// alpha is a scalar
+		__global__ void kernel(double* y, const double alpha, const double* x, const int N);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_add_scaled_diff_kernel
+	{
+		// computes y = x + alpha*(l-r)
+		// y, x, l and r are vectors of length N
+		// alpha is a scalar
+		__global__ void kernel(double* y, const double* x, const double alpha,
+			const double* l, const double* r, const int N);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_scaled_diff_kernel
+	{
+		// computes y = alpha*(l-r)
+		// y, l and r are vectors of length N
+		// alpha is a scalar
+		__global__ void kernel(double* y, const double alpha,
+			const double* l, const double* r, const int N);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_scale_kernel
+	{
+		// computes y := alpha*x
+		// alpha is scalar
+		// y and x are vectors of length N
+		__global__ void kernel(double* y, const double alpha, double* x, const int N);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_lcomb_kernel
+	{
+		// computes linear combination of two vectors y := alpha*x + beta*z
+		// alpha and beta are scalar
+		// y, x and z are vectors of length N
+		__global__ void kernel(double* y, const double alpha, double* x, const double beta,
+			const double* z, const int N);
+
+		extern __constant__ config_t config;
+	}
+
+	namespace ss_copy_kernel
+	{
+		// copy one vector into another y := x
+		// x and y are vectors of length N
+		__global__ void kernel(double* y, const double* x, const int N);
+
+		extern __constant__ config_t config;
+	}
+
 	// conjugate gradient solver
 	// solve the linear system A*x = b for x
 	// the matrix A is implicit in the objective function for the diffusion equation

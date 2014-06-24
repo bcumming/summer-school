@@ -86,8 +86,7 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 		__device__ double* buffer = NULL;
 	}
 }
@@ -97,19 +96,13 @@ __device__ double ss_dot(const double* x, const double* y, const int N)
 	using namespace gpu;
 	using namespace gpu::ss_dot_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N / 2, 1, grid, block);
-		grid_block_init = true;
-	}
-
 	if (!buffer)
-		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * grid.x));
+		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * config.grid.x));
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block, block.x * sizeof(double)>>>(x, y, buffer));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block, config.block.x * sizeof(double)>>>(x, y, buffer));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 	double result = buffer[0];
-	for (int i = 1; i < grid.x; i++)
+	for (int i = 1; i < config.grid.x; i++)
 		result += buffer[i];
 	
     // record the number of floating point oporations
@@ -165,8 +158,7 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 		__device__ double* buffer = NULL;
 	}
 }
@@ -176,19 +168,13 @@ __device__ double ss_sum(const double* x, const int N)
 	using namespace gpu;
 	using namespace gpu::ss_sum_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N / 2, 1, grid, block);
-		grid_block_init = true;
-	}
-	
 	if (!buffer)
-		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * grid.x));
+		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * config.grid.x));
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block, block.x * sizeof(double)>>>(x, buffer));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block, config.block.x * sizeof(double)>>>(x, buffer));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 	double result = buffer[0];
-	for (int i = 1; i < grid.x; i++)
+	for (int i = 1; i < config.grid.x; i++)
 		result += buffer[i];
 	
     // record the number of floating point oporations
@@ -244,8 +230,7 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 		__device__ double* buffer = NULL;
 	}
 }
@@ -254,20 +239,14 @@ __device__ double ss_norm2(const double* x, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_norm2_kernel;
-
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N / 2, 1, grid, block);
-		grid_block_init = true;
-	}
 	
 	if (!buffer)
-		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * grid.x));
+		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * config.grid.x));
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block, block.x * sizeof(double)>>>(x, buffer));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block, config.block.x * sizeof(double)>>>(x, buffer));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 	double result = buffer[0];
-	for (int i = 1; i < grid.x; i++)
+	for (int i = 1; i < config.grid.x; i++)
 		result += buffer[i];
 	
     // record the number of floating point oporations
@@ -291,8 +270,7 @@ namespace gpu
 			x[i] = value;
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -301,12 +279,7 @@ __device__ void ss_fill(double* x, const double value, const int N)
 	using namespace gpu;
 	using namespace gpu::ss_fill_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(x, value, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(x, value, N));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,8 +301,7 @@ namespace gpu
 			y[i] += alpha * x[i];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -338,12 +310,7 @@ __device__ void ss_axpy(double* y, const double alpha, const double* x, const in
 	using namespace gpu;
 	using namespace gpu::ss_axpy_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, x, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, N));
 
 	// record the number of floating point oporations
 	flops_blas1 = flops_blas1 + 2 * N;
@@ -365,8 +332,7 @@ namespace gpu
 			y[i] = x[i] + alpha * (l[i] - r[i]);
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -376,12 +342,7 @@ __device__ void ss_add_scaled_diff(double* y, const double* x, const double alph
 	using namespace gpu;
 	using namespace ss_add_scaled_diff_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, x, alpha, l, r, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, x, alpha, l, r, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 3 * N;
@@ -403,8 +364,7 @@ namespace gpu
 			y[i] = alpha * (l[i] - r[i]);
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -414,12 +374,7 @@ __device__ void ss_scaled_diff(double* y, const double alpha,
 	using namespace gpu;
 	using namespace gpu::ss_scaled_diff_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, l, r, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, l, r, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 2 * N;
@@ -440,8 +395,7 @@ namespace gpu
 			y[i] = alpha * x[i];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -450,12 +404,7 @@ __device__ void ss_scale(double* y, const double alpha, double* x, const int N)
 	using namespace gpu;
 	using namespace gpu::ss_scale_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, x, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + N;
@@ -477,8 +426,7 @@ namespace gpu
 			y[i] = alpha * x[i] + beta * z[i];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -488,12 +436,7 @@ __device__ void ss_lcomb(double* y, const double alpha, double* x, const double 
 	using namespace gpu;
 	using namespace gpu::ss_lcomb_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, alpha, x, beta, z, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, beta, z, N));
 
     // record the number of floating point oporations
     flops_blas1 = flops_blas1 + 3 * N;
@@ -513,8 +456,7 @@ namespace gpu
 			y[i] = x[i];
 		}
 
-		__device__ dim3 grid, block;
-		__device__ bool grid_block_init = false;
+		__constant__ config_t config;
 	}
 }
 
@@ -523,12 +465,7 @@ __device__ void ss_copy(double* y, const double* x, const int N)
 	using namespace gpu;
 	using namespace gpu::ss_copy_kernel;
 
-	if (!grid_block_init)
-	{
-		get_optimal_grid_block_config(kernel, N, 1, grid, block);
-		grid_block_init = true;
-	}
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<grid, block>>>(y, x, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, x, N));
 }
 
 namespace gpu
