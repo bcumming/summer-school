@@ -28,3 +28,4 @@ tmp
 *.png
 visitlog.py
 .fuse*
+*.log
