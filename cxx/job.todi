@@ -5,5 +5,5 @@
 #SBATCH --output=job.out
 #SBATCH --time=00:02:00
 
-aprun ./main 128 128 100 0.01
+aprun ./main 128 128 100 0.01 yes
 

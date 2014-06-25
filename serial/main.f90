@@ -54,8 +54,9 @@ program diffusion_serial
 
     write(*,'(A)') '========================================================================'
     print *,       '                      Welcome to mini-stencil!'
-    print *, 'mesh :: ', nx, '*', ny, '    dx =', options%dx
-    print *, 'time :: ', nt, 'time steps from 0 .. ', options%nt*options%dt
+    print *, 'version :: Fortran90 serial'
+    print *, 'mesh    :: ', nx, '*', ny, '    dx =', options%dx
+    print *, 'time    :: ', nt, 'time steps from 0 .. ', options%nt*options%dt
     write(*,'(A)') '========================================================================'
 
     ! ****************** constants ******************
