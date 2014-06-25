@@ -5,6 +5,7 @@ ifeq ($(PE_ENV),GNU)
 endif
 ifeq ($(PE_ENV),CRAY)
 	CXXFLAGS=-O3
+	CXXFLAGS+=-h list=a
 endif
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
