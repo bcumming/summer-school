@@ -55,21 +55,10 @@ void diffusion(const data::Field &U, data::Field &S)
     int iend  = nx - 1;
     int jend  = ny - 1;
 	
-	double *dvecalpha, *dveccoef, *dvec1, *dvecdxs;
-	posix_memalign((void **)&dvecalpha, sizeof(__m512d), 8 * sizeof(double));
-	posix_memalign((void **)&dveccoef, sizeof(__m512d), 8 * sizeof(double));
-	posix_memalign((void **)&dvec1, sizeof(__m512d), 8 * sizeof(double));
-	posix_memalign((void **)&dvecdxs, sizeof(__m512d), 8 * sizeof(double));
-	for (int i = 0; i < 8; i++){
-		dvecalpha[i] = alpha;
-		dveccoef[i] = -(4.0 + alpha);
-		dvec1[i] = 1.0;
-		dvecdxs[i] = dxs;
-	}
-	__m512d veccoeff = _mm512_load_pd(dveccoef);
-	__m512d vecalpha = _mm512_load_pd(dvecalpha);
-	__m512d vec1 = _mm512_load_pd(dvec1);
-	__m512d vecdxs = _mm512_load_pd(dvecdxs);
+	__m512d veccoeff = _mm512_set1_pd(-(4.0 + alpha));
+	__m512d vecalpha = _mm512_set1_pd( alpha);
+	__m512d vec1 = _mm512_set1_pd(1.0);
+	__m512d vecdxs = _mm512_set1_pd(dxs);
     
 	// the interior grid points
 	#pragma unroll
