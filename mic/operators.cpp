@@ -13,6 +13,7 @@
 
 namespace operators {
 
+/*
 void MyPrint(char * text, __m512d a){
 	double *temp;
 	posix_memalign((void **)&temp, sizeof(__m512d), 8 * sizeof(double));
@@ -22,6 +23,7 @@ void MyPrint(char * text, __m512d a){
 		printf("%f ", temp[i]);
 	printf("\n");
 }
+*/
 
 inline __m512d _mm512_rotr_pd(__m512d v){
 	__m512i iv1 = _mm512_swizzle_epi64(_mm512_castpd_si512(v), _MM_SWIZ_REG_CDAB); 
@@ -74,33 +76,20 @@ void diffusion(const data::Field &U, data::Field &S)
 	#pragma omp parallel for
     for (int j=1; j < jend; j++) {
 		//Calculate the number of vectorized iterations
-		int ivecend = (iend - 8) / 8;
-		
-		//Ramaider loop TODO: implement it with masks
-		#pragma unroll
-        for (int i = 1; i < 8; i++) {
-            S(i,j) = -(4. + alpha) * U(i,j)               // central point
-                                    + U(i-1,j) + U(i+1,j) // east and west
-                                    + U(i,j-1) + U(i,j+1) // north and south
-                                    + alpha * x_old(i,j)
-                                    + dxs * U(i,j) * (1.0 - U(i,j));
-        }
-		
+		int ivecend = (iend + 7) / 8;
 		#pragma unroll
 		for (int ivec = 0; ivec < ivecend; ivec++){
 			// i = (ivec * 8 + 8) : (ivec * 8 + 17)
-			int i = 8 * ivec + 8; 
+			int i = 8 * ivec; 
 			//==============================================
 			//Compose U(i+-1, j) as a vector
 			__m512d vecu = _mm512_load_pd((void *)&U(i,j));
-			__m512d vecuprev = _mm512_load_pd((void *)&U(i-8,j));
-			__m512d vecunext = _mm512_load_pd((void *)&U(i+8,j));
 			//left
-			__m512d veculeft = _mm512_rotr_pd(_mm512_mask_blend_pd(128, vecu, vecuprev));
+			__m512d veculeft = _mm512_rotr_pd(_mm512_mask_blend_pd(128, vecu, _mm512_load_pd((void *)&U(i-8,j))));
 			//right
-			__m512d vecuright = _mm512_rotl_pd(_mm512_mask_blend_pd(1, vecu, vecunext));
+			__m512d vecuright = _mm512_rotl_pd(_mm512_mask_blend_pd(1, vecu, _mm512_load_pd((void *)&U(i+8,j))));
 			//==============================================
-			//dxs * U(i,j) * (1.0 - U(i,j)) + U(i,j-1) If it produces segfault change to loadu
+			//dxs * U(i,j) * (1.0 - U(i,j)) + U(i,j-1)
 			__m512d p1 = _mm512_fmadd_pd(vecdxs, _mm512_mul_pd(_mm512_load_pd((void *)&U(i,j)), _mm512_sub_pd(vec1, _mm512_load_pd((void *)&U(i,j)))), _mm512_load_pd((void *)&U(i,j-1)));
 			//-(4. + alpha) * U(i,j) + U(i-1,j)
 			__m512d p2 = _mm512_fmadd_pd(veccoeff, _mm512_load_pd((void *)&U(i,j)), veculeft);
@@ -111,23 +100,19 @@ void diffusion(const data::Field &U, data::Field &S)
 			//p2 + p3 + p4
 			__m512d res = _mm512_add_pd(_mm512_add_pd(p2, p3), p4);
 			//Store to S(i, j)
-			_mm512_store_pd((void *)(&S(i,j)), res);
+			if (ivec == 0)
+				_mm512_mask_store_pd((void *)(&S(i,j)), 255 - 1, res);
+			if ((ivec != 0) && (ivec != ivecend))
+				_mm512_store_pd((void *)(&S(i,j)), res);
+			if (ivec == ivecend)
+				_mm512_mask_store_pd((void *)(&S(i,j)),(1 << (iend - 8 * ivec)) - 1, res);
 		}
-
-		//Ramaider loop TODO: implement it with masks
-		#pragma unroll
-        for (int i = ivecend * 8 + 1; i < iend; i++) {
-            S(i,j) = -(4. + alpha) * U(i,j)               // central point
-                                    + U(i-1,j) + U(i+1,j) // east and west
-                                    + U(i,j-1) + U(i,j+1) // north and south
-                                    + alpha * x_old(i,j)
-                                    + dxs * U(i,j) * (1.0 - U(i,j));
-        }
     }
 
     // the east boundary
     {
         int i = nx - 1;
+		#pragma unroll
 		#pragma omp parallel for
         for (int j = 1; j < jend; j++)
         {
@@ -141,6 +126,7 @@ void diffusion(const data::Field &U, data::Field &S)
     // the west boundary
     {
         int i = 0;
+		#pragma unroll
 		#pragma omp parallel for
         for (int j = 1; j < jend; j++)
         {
@@ -164,6 +150,7 @@ void diffusion(const data::Field &U, data::Field &S)
         }
 
         // north boundary
+		#pragma unroll
 		#pragma omp parallel for
         for (int i = 1; i < iend; i++)
         {
@@ -195,6 +182,7 @@ void diffusion(const data::Field &U, data::Field &S)
         }
 
         // south boundary
+		#pragma unroll
 		#pragma omp parallel for
         for (int i = 1; i < iend; i++)
         {
