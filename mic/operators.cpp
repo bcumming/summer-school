@@ -9,8 +9,31 @@
 #include "data.h"
 #include "operators.h"
 #include "stats.h"
+#include <stdio.h>
 
 namespace operators {
+
+void MyPrint(char * text, __m512d a){
+	double *temp;
+	posix_memalign((void **)&temp, sizeof(__m512d), 8 * sizeof(double));
+	_mm512_store_pd((void *)(temp), a);
+	printf("%s: ", text);
+	for (int i = 0; i < 8; i++)
+		printf("%f ", temp[i]);
+	printf("\n");
+}
+
+inline __m512d _mm512_rotr_pd(__m512d v){
+	__m512i iv1 = _mm512_swizzle_epi64(_mm512_castpd_si512(v), _MM_SWIZ_REG_CDAB); 
+	return(_mm512_castsi512_pd(_mm512_mask_blend_epi64(85, iv1, _mm512_permute4f128_epi32(iv1, _MM_PERM_CBAD))));
+}
+
+inline __m512d _mm512_rotl_pd(__m512d v){
+	__m512i iv1 = _mm512_swizzle_epi64(_mm512_castpd_si512(v), _MM_SWIZ_REG_CDAB); 
+	return(_mm512_castsi512_pd(_mm512_mask_blend_epi64(255-85, iv1, _mm512_permute4f128_epi32(iv1, _MM_PERM_ADCB))));
+}
+
+
 
 void diffusion(const data::Field &U, data::Field &S)
 {
@@ -29,11 +52,71 @@ void diffusion(const data::Field &U, data::Field &S)
     int ny = options.ny;
     int iend  = nx - 1;
     int jend  = ny - 1;
-
-    // the interior grid points
-	#pragma omp parallel for collapse(2)
+	
+	double *dvecalpha, *dveccoef, *dvec1, *dvecdxs;
+	posix_memalign((void **)&dvecalpha, sizeof(__m512d), 8 * sizeof(double));
+	posix_memalign((void **)&dveccoef, sizeof(__m512d), 8 * sizeof(double));
+	posix_memalign((void **)&dvec1, sizeof(__m512d), 8 * sizeof(double));
+	posix_memalign((void **)&dvecdxs, sizeof(__m512d), 8 * sizeof(double));
+	for (int i = 0; i < 8; i++){
+		dvecalpha[i] = alpha;
+		dveccoef[i] = -(4.0 + alpha);
+		dvec1[i] = 1.0;
+		dvecdxs[i] = dxs;
+	}
+	__m512d veccoeff = _mm512_load_pd(dveccoef);
+	__m512d vecalpha = _mm512_load_pd(dvecalpha);
+	__m512d vec1 = _mm512_load_pd(dvec1);
+	__m512d vecdxs = _mm512_load_pd(dvecdxs);
+    
+	// the interior grid points
+	#pragma unroll
+	#pragma omp parallel for
     for (int j=1; j < jend; j++) {
-        for (int i=1; i < iend; i++) {
+		//Calculate the number of vectorized iterations
+		int ivecend = (iend - 8) / 8;
+		
+		//Ramaider loop TODO: implement it with masks
+		#pragma unroll
+        for (int i = 1; i < 8; i++) {
+            S(i,j) = -(4. + alpha) * U(i,j)               // central point
+                                    + U(i-1,j) + U(i+1,j) // east and west
+                                    + U(i,j-1) + U(i,j+1) // north and south
+                                    + alpha * x_old(i,j)
+                                    + dxs * U(i,j) * (1.0 - U(i,j));
+        }
+		
+		#pragma unroll
+		for (int ivec = 0; ivec < ivecend; ivec++){
+			// i = (ivec * 8 + 8) : (ivec * 8 + 17)
+			int i = 8 * ivec + 8; 
+			//==============================================
+			//Compose U(i+-1, j) as a vector
+			__m512d vecu = _mm512_load_pd((void *)&U(i,j));
+			__m512d vecuprev = _mm512_load_pd((void *)&U(i-8,j));
+			__m512d vecunext = _mm512_load_pd((void *)&U(i+8,j));
+			//left
+			__m512d veculeft = _mm512_rotr_pd(_mm512_mask_blend_pd(128, vecu, vecuprev));
+			//right
+			__m512d vecuright = _mm512_rotl_pd(_mm512_mask_blend_pd(1, vecu, vecunext));
+			//==============================================
+			//dxs * U(i,j) * (1.0 - U(i,j)) + U(i,j-1) If it produces segfault change to loadu
+			__m512d p1 = _mm512_fmadd_pd(vecdxs, _mm512_mul_pd(_mm512_load_pd((void *)&U(i,j)), _mm512_sub_pd(vec1, _mm512_load_pd((void *)&U(i,j)))), _mm512_load_pd((void *)&U(i,j-1)));
+			//-(4. + alpha) * U(i,j) + U(i-1,j)
+			__m512d p2 = _mm512_fmadd_pd(veccoeff, _mm512_load_pd((void *)&U(i,j)), veculeft);
+			//alpha * x_old(i,j) + U(i,j+1)
+			__m512d p3 = _mm512_fmadd_pd(vecalpha, _mm512_load_pd((void *)&x_old(i,j)), _mm512_load_pd((void *)&U(i,j+1)));
+			//p1 + U(i+1,j)
+			__m512d p4 = _mm512_add_pd(p1, vecuright);
+			//p2 + p3 + p4
+			__m512d res = _mm512_add_pd(_mm512_add_pd(p2, p3), p4);
+			//Store to S(i, j)
+			_mm512_store_pd((void *)(&S(i,j)), res);
+		}
+
+		//Ramaider loop TODO: implement it with masks
+		#pragma unroll
+        for (int i = ivecend * 8 + 1; i < iend; i++) {
             S(i,j) = -(4. + alpha) * U(i,j)               // central point
                                     + U(i-1,j) + U(i+1,j) // east and west
                                     + U(i,j-1) + U(i,j+1) // north and south

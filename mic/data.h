@@ -1,5 +1,7 @@
 #ifndef DATA_H
 #define DATA_H
+#include "immintrin.h"
+#include "stdlib.h"
 
 namespace data
 {
@@ -34,7 +36,7 @@ class Field {
         #ifdef DEBUG
         assert(xdim>0 && ydim>0);
         #endif
-        ptr_ = new double[xdim*ydim];
+        posix_memalign((void **)&ptr_, sizeof(__m512d), xdim*ydim*sizeof(double));
     };
 
     // destructor
@@ -47,7 +49,7 @@ class Field {
         assert(xdim>0 && ydim>0);
         #endif
         free();
-        ptr_ = new double[xdim*ydim];
+        posix_memalign((void **)&ptr_, sizeof(__m512d), xdim*ydim*sizeof(double));
         #ifdef DEBUG
         assert(xdim>0 && ydim>0);
         #endif
