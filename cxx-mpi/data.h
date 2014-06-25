@@ -1,8 +1,10 @@
-#ifndef DATA_H
-#define DATA_H
+#pragma once
+
+#include <cassert>
 
 namespace data
 {
+
 // define some helper types that can be used to pass simulation
 // data around without haveing to pass individual parameters
 struct Discretization
@@ -10,13 +12,59 @@ struct Discretization
     int nx;       // x dimension
     int ny;       // y dimension
     int nt;       // number of time steps
-    int N;        // total number of grid points
+    //TODO wherever you see this cause an error, double check if we want global or local value
+    //int N;        // total number of grid points
     double dt;    // time step size
     double dx;    // distance between grid points
     double alpha; // dx^2/(D*dt)
 };
 
-extern Discretization options;
+struct SubDomain
+{
+    // initialize a subdomain
+    void init(int, int, Discretization&);
+
+    // print subdomain information
+    void print();
+
+    // i and j dimensions of the global decomposition
+    int ndomx;
+    int ndomy;
+
+    // the i and j index of this sub-domain
+    int domx;
+    int domy;
+
+    // the i and j bounding box of this sub-domain
+    int startx;
+    int starty;
+    int endx;
+    int endy;
+
+    // the rank of neighbouring domains
+    int neighbour_north;
+    int neighbour_east;
+    int neighbour_south;
+    int neighbour_west;
+
+    // mpi info
+    int size;
+    int rank;
+
+    // boolean flags that indicate whether the sub-domain is on 
+    // any of the 4 global boundaries
+    bool on_boundary_north;
+    int on_boundary_south;
+    int on_boundary_east;
+    int on_boundary_west;
+
+    // x and y dimension in grid points of the sub-domain
+    int nx;
+    int ny;
+
+    // total number of grid points
+    int N;
+};
 
 // thin wrapper around a pointer that can be accessed as either a 2D or 1D array
 // Field has dimension xdim * ydim in 2D, or length=xdim*ydim in 1D
@@ -35,6 +83,8 @@ class Field {
         assert(xdim>0 && ydim>0);
         #endif
         ptr_ = new double[xdim*ydim];
+        // do first touch
+        fill(0.);
     };
 
     // destructor
@@ -48,11 +98,11 @@ class Field {
         #endif
         free();
         ptr_ = new double[xdim*ydim];
-        #ifdef DEBUG
-        assert(xdim>0 && ydim>0);
-        #endif
         xdim_ = xdim;
         ydim_ = ydim;
+
+        // do first touch
+        fill(0.);
     }
 
     double*       data()       { return ptr_; }
@@ -92,6 +142,13 @@ class Field {
 
     private:
 
+    // set to a constant value
+    void fill(double val) {
+        #pragma omp parallel for
+        for(int i=0; i<xdim_*ydim_; ++i)
+            ptr_[i] = val;
+    }
+
     void free() {
         if(ptr_) delete[] ptr_;
         ptr_ = 0;
@@ -103,10 +160,23 @@ class Field {
 };
 
 // fields that hold the solution
-extern Field x_new, x_old; // 2d
-extern Field bndN, bndE, bndS, bndW; // 1d
+extern Field x_new; // 2d
+extern Field x_old; // 2d
 
-}
+// fields that hold the boundary values
+extern Field bndN; // 1d
+extern Field bndE; // 1d
+extern Field bndS; // 1d
+extern Field bndW; // 1d
 
-#endif // DATA_H
+// buffers used in boundary exchange
+extern Field buffN;
+extern Field buffE;
+extern Field buffS;
+extern Field buffW;
+
+extern Discretization options;
+extern SubDomain      domain;
+
+} // namespace data
 

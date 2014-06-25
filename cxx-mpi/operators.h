@@ -13,9 +13,10 @@
 
 namespace operators
 {
-using data::Field;
-void diffusion(const Field& up, Field& sp);
-}
+
+void diffusion(const data::Field &u, data::Field &s);
+
+} // namespace operators
 
 #endif // OPERATORS_H
 

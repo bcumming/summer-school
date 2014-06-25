@@ -2,10 +2,10 @@ CXX=CC
 ifeq ($(PE_ENV),GNU)
     # the gnu compiler requires that we specifically enable OpenMP
 	CXXFLAGS=-O3 -fopenmp
+	#CXXFLAGS+=-ftree-vectorizer-verbose=2
 endif
 ifeq ($(PE_ENV),CRAY)
 	CXXFLAGS=-O3
-	CXXFLAGS+=-h list=a
 endif
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp

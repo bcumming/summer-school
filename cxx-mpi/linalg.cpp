@@ -55,11 +55,15 @@ void cg_init(int nx, int ny)
 double ss_dot(Field const& x, Field const& y, const int N)
 {
     double result = 0;
+    double result_global = 0;
 
+    #pragma omp parallel for reduction(+:result)
     for (int i = 0; i < N; i++)
         result += x[i] * y[i];
 
-    return result;
+    MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    return result_global;
 }
 
 // computes the 2-norm of x
@@ -67,11 +71,15 @@ double ss_dot(Field const& x, Field const& y, const int N)
 double ss_norm2(Field const& x, const int N)
 {
     double result = 0;
+    double result_global = 0;
 
+    #pragma omp parallel for reduction(+:result)
     for (int i = 0; i < N; i++)
         result += x[i] * x[i];
 
-    return sqrt(result);
+    MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    return sqrt(result_global);
 }
 
 // sets entries in a vector to value
@@ -79,6 +87,7 @@ double ss_norm2(Field const& x, const int N)
 // value is th
 void ss_fill(Field& x, const double value, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         x[i] = value;
 }
@@ -92,6 +101,7 @@ void ss_fill(Field& x, const double value, const int N)
 // alpha is a scalar
 void ss_axpy(Field& y, const double alpha, Field const& x, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         y[i] += alpha * x[i];
 }
@@ -102,6 +112,7 @@ void ss_axpy(Field& y, const double alpha, Field const& x, const int N)
 void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
     Field const& l, Field const& r, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         y[i] = x[i] + alpha * (l[i] - r[i]);
 }
@@ -112,6 +123,7 @@ void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
 void ss_scaled_diff(Field& y, const double alpha,
     Field const& l, Field const& r, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         y[i] = alpha * (l[i] - r[i]);
 }
@@ -121,6 +133,7 @@ void ss_scaled_diff(Field& y, const double alpha,
 // y and x are vectors on length n
 void ss_scale(Field& y, const double alpha, Field& x, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i];
 }
@@ -131,6 +144,7 @@ void ss_scale(Field& y, const double alpha, Field& x, const int N)
 void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
     Field const& z, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         y[i] = alpha * x[i] + beta * z[i];
 }
@@ -139,6 +153,7 @@ void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
 // x and y are vectors of length N
 void ss_copy(Field& y, Field const& x, const int N)
 {
+    #pragma omp parallel for
     for (int i = 0; i < N; i++)
         y[i] = x[i];
 }
@@ -153,10 +168,9 @@ void ss_copy(Field& y, Field const& x, const int N)
 void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool& success)
 {
     // this is the dimension of the linear system that we are to solve
-    using data::options;
-    int N = options.N;
-    int nx = options.nx;
-    int ny = options.ny;
+    int N = data::domain.N;
+    int nx = data::domain.nx;
+    int ny = data::domain.ny;
 
     if (!cg_initialized)
         cg_init(nx,ny);

@@ -9,13 +9,7 @@
 #ifndef OPERATORS_H
 #define OPERATORS_H
 
-#include "data.h"
-
-namespace operators
-{
-using data::Field;
-void diffusion(const Field& up, Field& sp);
-}
+void diffusion(const double* up, double* sp);
 
 #endif // OPERATORS_H
 

@@ -7,6 +7,10 @@ DefineScalarExpression("procid", "procid(mesh)")
 OpenDatabase("localhost:./output.bov", 0, "BOV_1.0")
 AddPlot("Pseudocolor", "phi", 0, 0)
 atts = PseudocolorAttributes()
+atts.minFlag = 1
+atts.maxFlag = 1
+atts.min = 0.0
+atts.max = 1.0
 SetPlotOptions(atts)
 
 DrawPlots()

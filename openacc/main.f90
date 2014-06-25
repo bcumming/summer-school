@@ -257,14 +257,14 @@ subroutine readcmdline(options)
 
     ! local
     character(len=256) :: sarg
-    integer :: nx, ny, nz, nt
+    integer :: nx, ny, nt
     integer :: nargs
     real (kind=8) :: t
 
     nargs = command_argument_count()
     if ( nargs < 4 .or. nargs > 5) then
         if(domain%rank == 0) then
-            write(*,*) 'Usage: main nx ny nz nt'
+            write(*,*) 'Usage: main nx ny nt t verbose'
             write(*,*) '  nx  number of gridpoints in x-direction'
             write(*,*) '  ny  number of gridpoints in y-direction'
             write(*,*) '  nt  number of timesteps'

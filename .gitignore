@@ -26,3 +26,6 @@ main_mpi
 
 tmp
 *.png
+visitlog.py
+.fuse*
+*.log

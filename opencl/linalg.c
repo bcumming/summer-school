@@ -1,49 +1,35 @@
 // linear algebra subroutines
 // Ben Cumming @ CSCS
 
-#include <iostream>
-
-#include <cmath>
-#include <cstdio>
-
-#include <mpi.h>
-
 #include "linalg.h"
 #include "operators.h"
 #include "stats.h"
-#include "data.h"
 
-namespace linalg {
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-bool cg_initialized = false;
-Field r;
-Field Ap;
-Field p;
-Field Fx;
-Field Fxold;
-Field v;
-Field xold;
+int cg_initialized = 0;
+double *r = NULL, *Ap = NULL, *p = NULL;
+double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
 
-using namespace operators;
-using namespace stats;
-using data::Field;
 
 // initialize temporary storage fields used by the cg solver
 // I do this here so that the fields are persistent between calls
 // to the CG solver. This is useful if we want to avoid malloc/free calls
 // on the device for the OpenACC implementation (feel free to suggest a better
 // method for doing this)
-void cg_init(int nx, int ny)
+void cg_init(const int N)
 {
-    Ap.init(nx,ny);
-    r.init(nx,ny);
-    p.init(nx,ny);
-    Fx.init(nx,ny);
-    Fxold.init(nx,ny);
-    v.init(nx,ny);
-    xold.init(nx,ny);
+    Ap    = (double*) malloc(N*sizeof(double));
+    r     = (double*) malloc(N*sizeof(double)); 
+    p     = (double*) malloc(N*sizeof(double));
+    Fx    = (double*) malloc(N*sizeof(double));
+    Fxold = (double*) malloc(N*sizeof(double));
+    v     = (double*) malloc(N*sizeof(double));
+    xold  = (double*) malloc(N*sizeof(double));
 
-    cg_initialized = true;
+    cg_initialized = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,34 +38,43 @@ void cg_init(int nx, int ny)
 
 // computes the inner product of x and y
 // x and y are vectors on length N
-double ss_dot(Field const& x, Field const& y, const int N)
+double ss_dot(const double* x, const double* y, const int N)
 {
     double result = 0;
-
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         result += x[i] * y[i];
 
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
+    
     return result;
 }
 
 // computes the 2-norm of x
 // x is a vector on length N
-double ss_norm2(Field const& x, const int N)
+double ss_norm2(const double* x, const int N)
 {
     double result = 0;
-
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         result += x[i] * x[i];
 
-    return sqrt(result);
+    result = sqrt(result);
+
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
+    
+    return result;
 }
 
 // sets entries in a vector to value
 // x is a vector on length N
 // value is th
-void ss_fill(Field& x, const double value, const int N)
+void ss_fill(double* x, const double value, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         x[i] = value;
 }
 
@@ -90,56 +85,77 @@ void ss_fill(Field& x, const double value, const int N)
 // computes y := alpha*x + y
 // x and y are vectors on length N
 // alpha is a scalar
-void ss_axpy(Field& y, const double alpha, Field const& x, const int N)
+void ss_axpy(double* y, const double alpha, const double* x, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         y[i] += alpha * x[i];
+
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
 }
 
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
-    Field const& l, Field const& r, const int N)
+void ss_add_scaled_diff(double* y, const double* x, const double alpha,
+    const double* l, const double* r, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         y[i] = x[i] + alpha * (l[i] - r[i]);
+
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 3 * N;
 }
 
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-void ss_scaled_diff(Field& y, const double alpha,
-    Field const& l, Field const& r, const int N)
+void ss_scaled_diff(double* y, const double alpha,
+    const double* l, const double* r, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         y[i] = alpha * (l[i] - r[i]);
+
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
 }
 
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors on length n
-void ss_scale(Field& y, const double alpha, Field& x, const int N)
+void ss_scale(double* y, const double alpha, double* x, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         y[i] = alpha * x[i];
+
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + N;
 }
 
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors on length n
-void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
-    Field const& z, const int N)
+void ss_lcomb(double* y, const double alpha, double* x, const double beta,
+    const double* z, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         y[i] = alpha * x[i] + beta * z[i];
+
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 3 * N;
 }
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-void ss_copy(Field& y, Field const& x, const int N)
+void ss_copy(double* y, const double* x, const int N)
 {
-    for (int i = 0; i < N; i++)
+	int i;
+    for (i = 0; i < N; i++)
         y[i] = x[i];
 }
 
@@ -150,16 +166,18 @@ void ss_copy(Field& y, Field const& x, const int N)
 // x(N)
 // ON ENTRY contains the initial guess for the solution
 // ON EXIT  contains the solution
-void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool& success)
+void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success, cl_mem * all_device)
 {
+    //struct discretization_t* options = data::options;
+
     // this is the dimension of the linear system that we are to solve
-    using data::options;
     int N = options.N;
-    int nx = options.nx;
-    int ny = options.ny;
 
     if (!cg_initialized)
-        cg_init(nx,ny);
+    {
+        printf("INITIALIZING CG STATE\n");
+        cg_init(N);
+    }
 
     // epslion value use for matrix-vector approximation
     double eps     = 1.e-8;
@@ -175,7 +193,8 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
     //     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
     // we compute Fxold at startup
     // we have to keep x so that we can compute the F(x+exps*v)
-    diffusion(x, Fxold);
+    
+	diffusion(x, Fxold);
 
     // v = x + epsilon*x
     ss_scale(v, 1.0 + eps, x, N);
@@ -194,15 +213,16 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
     double rold = ss_dot(r, r, N), rnew = rold;
 
     // check for convergence
-    success = false;
+    *success = 0;
     if (sqrt(rold) < tol)
     {
-        success = true;
+        *success = 1;
         return;
     }
 
     int iter;
-    for(iter=0; iter<maxiters; iter++) {
+    for (iter = 1; iter <= maxiters; iter++)
+    {
         // Ap = A*p
         ss_lcomb(v, 1.0, xold, eps, p, N);
         diffusion(v, Fx);
@@ -221,8 +241,9 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
         rnew = ss_dot(r, r, N);
 
         // test for convergence
-        if (sqrt(rnew) < tol) {
-            success = true;
+        if (sqrt(rnew) < tol)
+        {
+            *success = 1;
             break;
         }
 
@@ -231,10 +252,12 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
 
         rold = rnew;
     }
-    stats::iters_cg += iter + 1;
+    iters_cg += iter;
 
-    if (!success)
-        std::cerr << "ERROR: CG failed to converge" << std::endl;
+    if (!*success)
+    {
+        fprintf(stderr, "ERROR: CG failed to converge after %d iterations\n", maxiters);
+        fprintf(stderr, "       achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
+    }
 }
 
-} // namespace linalg
