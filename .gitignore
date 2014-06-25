@@ -29,3 +29,4 @@ tmp
 visitlog.py
 .fuse*
 *.log
+job.out
