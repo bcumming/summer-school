@@ -69,7 +69,7 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
     }
 
     // store the parameters
-    options->N = options->nx*options->ny;
+    options->N = options->nx * options->ny;
 
     // compute timestep size
     options->dt = t / options->nt;
@@ -89,12 +89,33 @@ namespace gpu
 	__device__ double residual;
 	__device__ int cg_converged;
 
-	__global__ void main()
+	__global__ void main(double* x_new)
 	{
 		using namespace gpu;
 
+		int nx = options.nx;
+		int ny = options.ny;
 		int N  = options.N;
 		int nt = options.nt;
+
+		CUDA_ERR_CHECK(cudaMalloc(&x_old,  sizeof(double) * nx * ny));
+		CUDA_ERR_CHECK(cudaMalloc(&bndN,   sizeof(double) * nx));
+		CUDA_ERR_CHECK(cudaMalloc(&bndS,   sizeof(double) * nx));
+		CUDA_ERR_CHECK(cudaMalloc(&bndE,   sizeof(double) * ny));
+		CUDA_ERR_CHECK(cudaMalloc(&bndW,   sizeof(double) * ny));
+
+	    double* b;
+	    CUDA_ERR_CHECK(cudaMalloc(&b,      sizeof(double) * N));
+	    double* deltax;
+	    CUDA_ERR_CHECK(cudaMalloc(&deltax, sizeof(double) * N));
+
+		// set dirichlet boundary conditions to 0 all around
+		ss_fill(x_old,  0, N);
+		ss_fill(bndN,   0, nx);
+		ss_fill(bndS,   0, nx);
+		ss_fill(bndE,   0, ny);
+		ss_fill(bndW,   0, ny);
+		ss_fill(deltax, 0, N);
 	
 		// main timeloop
 		double tolerance = 1.e-6;
@@ -148,6 +169,14 @@ namespace gpu
 		        break;
 		    }
 		}
+
+		free(x_old);
+		free(bndN);
+		free(bndS);
+		free(bndE);
+		free(bndW);
+		free(b);
+		free(deltax);
 	}
 }
 
@@ -170,72 +199,67 @@ int main(int argc, char* argv[])
     printf("========================================================================\n");
 
     // allocate global fields
+    double* cpu_x_new  = (double*)malloc(sizeof(double) * nx * ny);
     {
     	using namespace cpu;
-    	
-		x_new  = (double*) malloc(sizeof(double) * nx * ny);
-		x_old  = (double*) malloc(sizeof(double) * nx * ny); 
-		bndN   = (double*) malloc(sizeof(double) * nx);
-		bndS   = (double*) malloc(sizeof(double) * nx); 
-		bndE   = (double*) malloc(sizeof(double) * ny); 
-		bndW   = (double*) malloc(sizeof(double) * ny); 
-	    b      = (double*) malloc(sizeof(double) * N);
-	    deltax = (double*) malloc(sizeof(double) * N);
-
-		// set dirichlet boundary conditions to 0 all around
-		memset(bndN,   0, sizeof(double) * nx);
-		memset(bndS,   0, sizeof(double) * nx);
-		memset(bndE,   0, sizeof(double) * ny);
-		memset(bndW,   0, sizeof(double) * ny);
-		memset(b,      0, sizeof(double) * N);
-		memset(deltax, 0, sizeof(double) * N);
 
 		// set the initial condition
 		// a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
 		// no larger than 1/8 of both xdim and ydim
-		memset(x_new, 0, sizeof(double) * nx * ny);
+		memset(cpu_x_new, 0, sizeof(double) * nx * ny);
 		double xc = 1.0 / 4.0;
 		double yc = (ny - 1) * options.dx / 4;
 		double radius = fmin(xc, yc) / 2.0;
-		int i,j;
-		//
-		for (j = 0; j < ny; j++)
+		for (int j = 0; j < ny; j++)
 		{
 		    double y = (j - 1) * options.dx;
-		    for (i = 0; i < nx; i++)
+		    for (int i = 0; i < nx; i++)
 		    {
 		        double x = (i - 1) * options.dx;
 		        if ((x - xc) * (x - xc) + (y - yc) * (y - yc) < radius * radius)
-		            x_new[i+j*nx] = 0.1;
+		            cpu_x_new[i + j * nx] = 0.1;
 		    }
 		}
-		
-	    CUDA_ERR_CHECK(cudaGetDeviceProperties(&gpuProps, 0));
 	}
-   	
-	cudaMallocDevice(x_new,  sizeof(double) * nx * ny);
-	cudaMallocDevice(x_old,  sizeof(double) * nx * ny);
-	cudaMallocDevice(bndN,   sizeof(double) * nx);
-	cudaMallocDevice(bndS,   sizeof(double) * nx);
-	cudaMallocDevice(bndE,   sizeof(double) * ny);
-	cudaMallocDevice(bndW,   sizeof(double) * ny);
-	cudaMallocDevice(b,      sizeof(double) * N);
-	cudaMallocDevice(deltax, sizeof(double) * N);
 
-	CUDA_ERR_CHECK(cudaMemcpyToSymbol(gpu::gpuProps, &cpu::gpuProps,
-		sizeof(cudaDeviceProp)));
+	CUDA_ERR_CHECK(cudaGetDeviceProperties(&cpu::props, 0));
+	
+	// copy initial solution to GPU
+	double* gpu_x_new;
+	CUDA_ERR_CHECK(cudaMalloc(&gpu_x_new, sizeof(double) * nx * ny));
+	CUDA_ERR_CHECK(cudaMemcpy(gpu_x_new, cpu_x_new, sizeof(double) * nx * ny, cudaMemcpyHostToDevice));
+    
+    // Calibrating kernels compute grids for the given problem dimensions.
+    {
+    	determine_optimal_grid_block_config(diffusion_interior_grid_points, nx - 2, ny - 2);
+    	determine_optimal_grid_block_config(diffusion_east_west_boundary_points, 1, ny - 2);
+		determine_optimal_grid_block_config(diffusion_north_south_boundary_points, nx - 2, 1);
+		determine_optimal_grid_block_config(ss_dot, N / 2, 1);
+		determine_optimal_grid_block_config(ss_sum, N / 2, 1);
+		determine_optimal_grid_block_config(ss_norm2, N / 2, 1);
+		determine_optimal_grid_block_config(ss_fill, N, 1);
+		determine_optimal_grid_block_config(ss_axpy, N, 1);
+		determine_optimal_grid_block_config(ss_add_scaled_diff, N, 1);
+		determine_optimal_grid_block_config(ss_scaled_diff, N, 1);
+		determine_optimal_grid_block_config(ss_scale, N, 1);
+		determine_optimal_grid_block_config(ss_lcomb, N, 1);
+		determine_optimal_grid_block_config(ss_copy, N, 1);
+	}
+
+	size_t freeGlobalMem, totalGlobalMem;
+	CUDA_ERR_CHECK(cudaMemGetInfo(&freeGlobalMem, &totalGlobalMem));
+	CUDA_ERR_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, freeGlobalMem));
 
     // start timer
     double timespent = -omp_get_wtime();
     
-    gpu::main<<<1, 1>>>();
+    gpu::main<<<1, 1>>>(gpu_x_new);
     
-    CUDA_ERR_CHECK(cudaMemcpy(cpu::x_new, get_device_value(gpu::x_new), sizeof(double) * N, cudaMemcpyDeviceToHost));
+    CUDA_ERR_CHECK(cudaMemcpy(cpu_x_new, gpu_x_new, sizeof(double) * nx * ny, cudaMemcpyDeviceToHost));
 
     // get times
     timespent += omp_get_wtime();
-    unsigned long long flops_total =
-    	get_device_value(gpu::flops_diff) + get_device_value(gpu::flops_blas1);
+    unsigned long long flops_total = gpu::get_value(gpu::flops_diff) + gpu::get_value(gpu::flops_blas1);
 
 	using namespace cpu;
 
@@ -246,7 +270,7 @@ int main(int argc, char* argv[])
     // binary data
     {
         FILE* output = fopen("output.bin", "w");
-        fwrite(x_new, sizeof(double), nx * ny, output);
+        fwrite(cpu_x_new, sizeof(double), nx * ny, output);
         fclose(output);
     }
 
@@ -268,17 +292,13 @@ int main(int argc, char* argv[])
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
     printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
-    printf("%u conjugate gradient iterations\n", get_device_value(gpu::iters_cg));
-    printf("%u newton iterations\n", get_device_value(gpu::iters_newton));
+    printf("%u conjugate gradient iterations\n", gpu::get_value(gpu::iters_cg));
+    printf("%u newton iterations\n", gpu::get_value(gpu::iters_newton));
     printf("--------------------------------------------------------------------------------\n");
 
     // deallocate global fields
-    free (x_new);
-    free (x_old);
-    free (bndN);
-    free (bndS);
-    free (bndE);
-    free (bndW);
+    CUDA_ERR_CHECK(cudaFree(gpu_x_new));
+    free(cpu_x_new);
 
     printf("Goodbye!\n");
 
