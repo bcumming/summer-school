@@ -9,6 +9,7 @@
 // Syntax: ./main nx ny nt t
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 #include <fstream>
 
 #include <cstdio>
@@ -30,6 +31,44 @@ using namespace operators;
 using namespace stats;
 
 // ==============================================================================
+void write_binary(std::string fname, Field &u, SubDomain &domain, Discretization &options)
+{
+    MPI_Offset disp = 0;
+    MPI_File filehandle;
+    MPI_Datatype filetype;
+
+    int result =
+        MPI_File_open(
+            MPI_COMM_WORLD,
+            fname.c_str(),
+            MPI_MODE_CREATE | MPI_MODE_WRONLY,
+            MPI_INFO_NULL,
+            &filehandle
+        );
+    assert(result==MPI_SUCCESS);
+
+    int ustart[]  = {domain.startx-1, domain.starty-1};
+    int ucount[]  = {domain.nx, domain.ny};
+    int dimuids[] = {options.nx, options.ny};
+
+    result = MPI_Type_create_subarray(2, dimuids, ucount, ustart, MPI_ORDER_FORTRAN, MPI_DOUBLE, &filetype);
+    assert(result==MPI_SUCCESS);
+
+    result = MPI_Type_commit(&filetype);
+    assert(result==MPI_SUCCESS);
+
+    result = MPI_File_set_view(filehandle, disp, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+    assert(result==MPI_SUCCESS);
+
+    result = MPI_File_write_all(filehandle, u.data(), domain.N, MPI_DOUBLE, MPI_STATUS_IGNORE);
+    assert(result==MPI_SUCCESS);
+
+    result = MPI_Type_free(&filetype);
+    assert(result==MPI_SUCCESS);
+
+    result = MPI_File_close(&filehandle);
+    assert(result==MPI_SUCCESS);
+}
 
 // read command line arguments
 static void readcmdline(Discretization& options, int argc, char* argv[])
@@ -207,6 +246,12 @@ int main(int argc, char* argv[])
         }
         iters_newton += it+1;
 
+        #ifdef OUTPUT_EVERY_STEP
+        std::stringstream str;
+        str << "output" << timestep << ".bin"; // get filename for this time step
+        write_binary(str.str(), x_old, domain, options); // write binary solution to file
+        #endif OUTPUT_EVERY_STEP
+
         // output some statistics
         //if (converged && verbose_output)
         if (converged && verbose_output) {
@@ -231,45 +276,7 @@ int main(int argc, char* argv[])
     ////////////////////////////////////////////////////////////////////
 
     // binary data
-    {
-        MPI_Offset disp = 0;
-        MPI_File filehandle;
-        MPI_Datatype filetype;
-        std::string fname("output.bin");
-
-        //int MPI_File_open(MPI_Comm comm, char *filename, int amode, MPI_Info info, MPI_File *fh)
-        int result =
-            MPI_File_open(
-                MPI_COMM_WORLD,
-                fname.c_str(),
-                MPI_MODE_CREATE | MPI_MODE_WRONLY,
-                MPI_INFO_NULL,
-                &filehandle
-            );
-        assert(result==MPI_SUCCESS);
-
-        int ustart[]  = {domain.startx-1, domain.starty-1};
-        int ucount[]  = {domain.nx, domain.ny};
-        int dimuids[] = {options.nx, options.ny};
-
-        result = MPI_Type_create_subarray(2, dimuids, ucount, ustart, MPI_ORDER_FORTRAN, MPI_DOUBLE, &filetype);
-        assert(result==MPI_SUCCESS);
-
-        result = MPI_Type_commit(&filetype);
-        assert(result==MPI_SUCCESS);
-
-        result = MPI_File_set_view(filehandle, disp, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
-        assert(result==MPI_SUCCESS);
-
-        result = MPI_File_write_all(filehandle, x_new.data(), N, MPI_DOUBLE, MPI_STATUS_IGNORE);
-        assert(result==MPI_SUCCESS);
-
-        result = MPI_Type_free(&filetype);
-        assert(result==MPI_SUCCESS);
-
-        result = MPI_File_close(&filehandle);
-        assert(result==MPI_SUCCESS);
-    }
+    write_binary("output.bin", x_old, domain, options);
 
     // metadata
     if( domain.rank==0 ) {
