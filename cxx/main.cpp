@@ -144,11 +144,9 @@ int main(int argc, char* argv[])
         }
     }
 
-    double time_in_bcs = 0.0;
-    double time_in_diff = 0.0;
-    flops_bc = 0;
-    flops_diff = 0;
-    flops_blas1 = 0;
+    //flops_bc = 0;
+    //flops_diff = 0;
+    //flops_blas1 = 0;
     verbose_output = false;
     iters_cg = 0;
     iters_newton = 0;
@@ -157,7 +155,6 @@ int main(int argc, char* argv[])
     double timespent = -omp_get_wtime();
 
     // main timeloop
-    double alpha = options.alpha;
     double tolerance = 1.e-6;
     for (int timestep = 1; timestep <= nt; timestep++)
     {
@@ -209,7 +206,6 @@ int main(int argc, char* argv[])
 
     // get times
     timespent += omp_get_wtime();
-    unsigned long long flops_total = flops_diff + flops_blas1;
 
     ////////////////////////////////////////////////////////////////////
     // write final solution to BOV file for visualization

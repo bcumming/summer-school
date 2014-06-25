@@ -117,7 +117,7 @@ subroutine diffusion(u, s)
                     + 12 * (options%nx-2) * (options%ny-2) & ! interior points
                     + 11 * (options%nx-2 + options%ny-2) &   ! NESW boundary points
                     + 11 * 4                                 ! corner points
-end
+end subroutine
 
 end module operators
 

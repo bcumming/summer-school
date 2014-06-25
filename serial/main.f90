@@ -181,8 +181,9 @@ program diffusion_serial
     ! print table sumarizing results
     write(*,'(A)') '--------------------------------------------------------------------------------'
     write(*,*) 'simulation took ', timespent , ' seconds'
-    write(*,*) '                ', iters_cg , ' conjugate gradient iterations', iters_cg/timespent, ' per second'
-    write(*,*) '                ', iters_newton , ' nonlinear newton iterations'
+    write(*,*) iters_cg , ' conjugate gradient iterations'
+    write(*,*) iters_cg/timespent, ' per second'
+    write(*,*) iters_newton , ' nonlinear newton iterations'
     write(*,'(A)') '-------------------------------------------------------------------------------'
 
     ! ****************** cleanup ******************
@@ -207,7 +208,7 @@ subroutine swap_data()
     call move_alloc(x_new, tmp)
     call move_alloc(x_old, x_new)
     call move_alloc(tmp, x_old)
-end
+end subroutine
 
 !==============================================================================
 
@@ -278,7 +279,7 @@ subroutine readcmdline(options)
     options%dx = 1./real(nx-1)
     ! set alpha, assume diffusion coefficient D is 1
     options%alpha = (options%dx**2) / (1.*options%dt)
-end
+end subroutine
 !==============================================================================
 
 ! write error message and terminate
@@ -298,7 +299,7 @@ subroutine error(yes, msg)
         write(0,*) 'Execution aborted...'
         stop
     end if
-end
+end subroutine
 
 !==============================================================================
 

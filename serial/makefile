@@ -1,12 +1,20 @@
-FTN = ftn
-FFLAGS = -O2
+FTN = gfortran
+FFLAGS = -O3 -fopenmp
 ifeq ($(PE_ENV),GNU)
-    # the gnu compiler requires that we specifically enable OpenMP
+	FTN=ftn
 	FFLAGS=-O3 -fopenmp
 endif
 ifeq ($(PE_ENV),CRAY)
+	FTN=ftn
 	FFLAGS=-O3
-	#FFLAGS += -e Z # use c-style preprocessing
+endif
+ifeq ($(PE_ENV),PGI)
+	FTN=ftn
+	FFLAGS=-O3 -mp
+endif
+ifeq ($(PE_ENV),INTEL)
+	FTN=ftn
+	FFLAGS=-O3 -openmp
 endif
 
 SOURCES = stats.f90 data.f90 operators.f90 linalg.f90

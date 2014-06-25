@@ -25,7 +25,7 @@ subroutine cg_init(N)
 
     allocate(Ap(N), r(N), p(N), Fx(N), Fxold(N), v(N), xold(N))
     cg_initialized = .true.
-end
+end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   blas level 1 reductions
@@ -52,7 +52,7 @@ real (kind=8) function ss_dot(x, y, N)
     flops_blas1 = flops_blas1 + 2*N
 
     return
-end
+end function
 
 ! computes the 2-norm of x
 !       x is a vector on length N
@@ -75,7 +75,7 @@ real (kind=8) function ss_norm2(x, N)
     flops_blas1 = flops_blas1 + 2*N
 
     return
-end
+end function
 
 ! sets entries in a vector to value
 !       x is a vector on length N
@@ -93,7 +93,7 @@ subroutine ss_fill(x, value, N)
     do i = 1, N
         x(i) = value
     enddo
-end
+end subroutine
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !   blas level 1 vector-vector operations
@@ -118,7 +118,7 @@ subroutine ss_axpy(y, alpha, x, N)
 
     ! update the flops counter
     flops_blas1 = flops_blas1 + 2*N
-end
+end subroutine
 
 ! computes y = x + alpha*(l-r)
 !       y, x, l and r are vectors of length N
@@ -141,7 +141,7 @@ subroutine ss_add_scaled_diff(y, x, alpha, l, r, N)
 
     ! update the flops counter
     flops_blas1 = flops_blas1 + 3*N
-end
+end subroutine
 
 ! computes y = alpha*(l-r)
 !       y, l and r are vectors of length N
@@ -163,7 +163,7 @@ subroutine ss_scaled_diff(y, alpha, l, r, N)
 
     ! update the flops counter
     flops_blas1 = flops_blas1 + 2*N
-end
+end subroutine
 
 ! computes y := alpha*x
 !   alpha is scalar
@@ -185,7 +185,7 @@ subroutine ss_scale(y, alpha, x, N)
 
     ! update the flops counter
     flops_blas1 = flops_blas1 + N
-end
+end subroutine
 
 ! computes linear combination of two vectors y := alpha*x + beta*z
 !   alpha and beta are scalar
@@ -209,7 +209,7 @@ subroutine ss_lcomb(y, alpha, x, beta, z, N)
 
     ! update the flops counter
     flops_blas1 = flops_blas1 + 3*N
-end
+end subroutine
 
 ! copy one vector into another y := x
 !       x and y are vectors of length N
@@ -226,7 +226,7 @@ subroutine ss_copy(y, x, N)
     do i = 1, N
         y(i) = x(i)
     enddo
-end
+end subroutine
 
 ! conjugate gradient solver
 ! solve the linear system A*x = b for x
@@ -334,7 +334,7 @@ subroutine ss_cg(x, b, maxiters, tol, success)
     if (.NOT. success) then
         write(*,*) 'ERROR: CG failed to converge after ', maxiters, ' iterations'
     endif
-end
+end subroutine
 
 end module linalg
 

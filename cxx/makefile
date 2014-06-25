@@ -1,11 +1,24 @@
-CXX=CC
+# by default select gcc
+CXX=g++
+CXXFLAGS=-O3 -fopenmp
+
+# if on a cray system, set flags according to the compilation enviroment
 ifeq ($(PE_ENV),GNU)
-    # the gnu compiler requires that we specifically enable OpenMP
+	CXX=CC
 	CXXFLAGS=-O3 -fopenmp
 endif
 ifeq ($(PE_ENV),CRAY)
+	CXX=CC
 	CXXFLAGS=-O3
 	CXXFLAGS+=-h list=a
+endif
+ifeq ($(PE_ENV),INTEL)
+	CXX=CC
+	CXXFLAGS=-O3 -openmp
+endif
+ifeq ($(PE_ENV),PGI)
+	CXX=CC
+	CXXFLAGS=-O3 -mp
 endif
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
@@ -35,5 +48,6 @@ clean:
 	rm -f main
 	rm -f *.o
 	rm -f *.i
+	rm -f *.lst
 	rm -f output.*
 
