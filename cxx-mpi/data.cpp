@@ -60,30 +60,21 @@ void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
     // get total number of grid points in this sub-domain
     N = nx*ny;
 
-    on_boundary_west  = false;
-    on_boundary_east  = false;
-    on_boundary_north = false;
-    on_boundary_south = false;
-
     neighbour_east  = mpi_rank+1;
     neighbour_west  = mpi_rank-1;
     neighbour_north = mpi_rank+ndomx;
     neighbour_south = mpi_rank-ndomx;
 
     if (domx == 1) {
-        on_boundary_west = true;
         neighbour_west = -1;
     }
     if (domx == ndomx) {
-        on_boundary_east = true;
         neighbour_east = -1;
     }
     if (domy == 1) {
-        on_boundary_south = true;
         neighbour_south = -1;
     }
     if (domy == ndomy) {
-        on_boundary_north = true;
         neighbour_north = -1;
     }
 

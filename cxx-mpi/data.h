@@ -51,13 +51,6 @@ struct SubDomain
     int size;
     int rank;
 
-    // boolean flags that indicate whether the sub-domain is on 
-    // any of the 4 global boundaries
-    bool on_boundary_north;
-    int on_boundary_south;
-    int on_boundary_east;
-    int on_boundary_west;
-
     // x and y dimension in grid points of the sub-domain
     int nx;
     int ny;
