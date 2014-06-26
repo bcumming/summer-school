@@ -50,6 +50,14 @@ program diffusion_serial
 
     call initialize_mpi(options, domain)
 
+    !===================================================================
+    ! TODOSS
+    ! this exits early to double check domain decomposition
+    !===================================================================
+    !call mpi_finalize(ierr)
+    !call exit(0)
+    !===================================================================
+
     nx = options%nx
     ny = options%ny
     N  = options%N
@@ -106,13 +114,6 @@ program diffusion_serial
             endif
         enddo
     enddo
-
-    ! pack the boundaries with initial conditions where they are at
-    ! inter-process interfaces
-    if (domain%neighbour_north>=0) bndN = x_new(:,ny)
-    if (domain%neighbour_south>=0) bndS = x_new(:,1)
-    if (domain%neighbour_east>=0)  bndE = x_new(nx,:)
-    if (domain%neighbour_west>=0)  bndW = x_new(1,:)
 
     ! ****************** mpi reference version ******************
     time_in_bcs  = 0.0
@@ -355,11 +356,20 @@ subroutine initialize_mpi(options, domain)
     options%N  = nx*ny
 
     ! detemine information about neighbours
+    !===================================================================
+    ! TODOSS
+    ! figure out the MPI rank of each of your 4 neighbours
+    !===================================================================
     domain%neighbour_east  = mpi_rank+1
     domain%neighbour_west  = mpi_rank-1
     domain%neighbour_north = mpi_rank+ndomx
     domain%neighbour_south = mpi_rank-ndomx
+    !domain%neighbour_east  = -2
+    !domain%neighbour_west  = -2
+    !domain%neighbour_north = -2
+    !domain%neighbour_south = -2
 
+    ! set neighbours to be -1 if they are "over" boundary
     if (domx .eq. 1) then
         domain%neighbour_west = -1
     endif
@@ -383,12 +393,17 @@ subroutine initialize_mpi(options, domain)
 
     do i=0,mpi_size-1
         if( mpi_rank == i .and. verbose_output ) then
-            write (*,'(A,I2,A,I2,A,I2,A,I2,A,A,I2,A,I2,A,A,I3,I3,A,I3,I3,A,I5,A,I5)') 'rank ', mpi_rank, ' /', mpi_size, &
-                        ' : (', domx, ',', domy, ' )', &
-                        '/(', ndomx, ',', ndomy, ') ', &
-                        ' neigh N-S ', domain%neighbour_north, domain%neighbour_south, &
-                        ' neigh E-W ', domain%neighbour_east, domain%neighbour_west, &
-                        ' local dims ', nx, '  x' , ny
+            if( mpi_rank==0 ) then
+                write (*,'(A)') '-----------------------------------------------------------------------'
+                write (*,'(A,I3,A,I3,A,I3,A)') 'there are ', mpi_size, ' subdomains on a ', ndomx, ' * ', ndomy, ' grid'
+                write (*,'(A,I4,A,I4)') 'global grid has dimensions ', options%global_nx, ' * ', options%global_ny 
+                write (*,'(A)') '-----------------------------------------------------------------------'
+            end if
+            write (*,'(A,I2,A,I2,A,I2,A,A,I3,I3,I3,I3,A,I5,A,I5)') 'rank ', mpi_rank, &
+                        ' (', domx, ',', domy, ' ) :', &
+                        ' neighbours N,S,E,W (', domain%neighbour_north, domain%neighbour_south, &
+                        domain%neighbour_east, domain%neighbour_west, &
+                        ') : local dims ', nx, '  *' , ny
         end if
         call mpi_barrier(MPI_COMM_WORLD, ierr);
     end do

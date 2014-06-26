@@ -50,7 +50,7 @@ real (kind=8) function ss_dot(x, y, N)
         acc = acc + x(i) * y(i)
     enddo
 
-    call mpi_allreduce(acc, accglobal, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD, err)
+    !call mpi_allreduce(acc, accglobal, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD, err)
     ss_dot = accglobal
 
     ! record the number of floating point oporations
@@ -75,7 +75,7 @@ real (kind=8) function ss_norm2(x, N)
     do i = 1, N
         acc = acc + x(i) * x(i)
     enddo
-    call mpi_allreduce(acc, accglobal, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD, err)
+    !call mpi_allreduce(acc, accglobal, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD, err)
     ss_norm2 = sqrt(accglobal)
 
     flops_blas1 = flops_blas1 + 2*N
