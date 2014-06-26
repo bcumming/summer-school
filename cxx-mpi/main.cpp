@@ -143,7 +143,15 @@ int main(int argc, char* argv[])
 
     // initialize subdomain
     domain.init(mpi_rank, mpi_size, options);
-    domain.print();
+    if(verbose_output)
+        domain.print();
+
+    ////////////////////////////////////////////////////////////////////
+    // TODOSS :
+    ////////////////////////////////////////////////////////////////////
+    MPI_Finalize();
+    exit(0);
+    ////////////////////////////////////////////////////////////////////
 
     int nx = domain.nx;
     int ny = domain.ny;
@@ -171,14 +179,15 @@ int main(int argc, char* argv[])
     buffE.init(ny,1);
     buffW.init(ny,1);
 
-    Field b(nx,ny);
-    Field deltax(nx,ny);
-
     // set dirichlet boundary conditions to 0 all around
     ss_fill(bndN, 0., nx);
     ss_fill(bndS, 0., nx);
     ss_fill(bndE, 0., ny);
     ss_fill(bndW, 0., ny);
+
+
+    Field b(nx,ny);
+    Field deltax(nx,ny);
 
     // set the initial condition
     // a circle of concentration 0.1 centred at (xdim/4, ydim/4) with radius
@@ -250,7 +259,7 @@ int main(int argc, char* argv[])
         std::stringstream str;
         str << "output" << timestep << ".bin"; // get filename for this time step
         write_binary(str.str(), x_old, domain, options); // write binary solution to file
-        #endif OUTPUT_EVERY_STEP
+        #endif
 
         // output some statistics
         //if (converged && verbose_output)

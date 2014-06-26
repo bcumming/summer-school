@@ -12,8 +12,6 @@ struct Discretization
     int nx;       // x dimension
     int ny;       // y dimension
     int nt;       // number of time steps
-    //TODO wherever you see this cause an error, double check if we want global or local value
-    //int N;        // total number of grid points
     double dt;    // time step size
     double dx;    // distance between grid points
     double alpha; // dx^2/(D*dt)
@@ -22,7 +20,7 @@ struct Discretization
 struct SubDomain
 {
     // initialize a subdomain
-    void init(int, int, Discretization&);
+    void init(int rank, int size, Discretization& options);
 
     // print subdomain information
     void print();

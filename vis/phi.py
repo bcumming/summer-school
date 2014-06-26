@@ -18,7 +18,7 @@ DrawPlots()
 SaveWindowAtts = SaveWindowAttributes()
 SaveWindowAtts.outputToCurrentDirectory = 1
 #SaveWindowAtts.outputDirectory = "."
-SaveWindowAtts.fileName = "phi_image."
+SaveWindowAtts.fileName = "image"
 SaveWindowAtts.advancedMultiWindowSave = 0
 SaveWindowAtts.width = 640
 SaveWindowAtts.height = 720

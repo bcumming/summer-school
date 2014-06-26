@@ -43,7 +43,6 @@ void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
 
     nx = discretization.nx / ndomx;
     ny = discretization.ny / ndomy;
-    // TODO: the startx and endx values might have to be adjusted by 1
     startx = (domx-1)*nx+1;
     starty = (domy-1)*ny+1;
 
@@ -60,11 +59,21 @@ void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
     // get total number of grid points in this sub-domain
     N = nx*ny;
 
-    neighbour_east  = mpi_rank+1;
-    neighbour_west  = mpi_rank-1;
-    neighbour_north = mpi_rank+ndomx;
-    neighbour_south = mpi_rank-ndomx;
+    ////////////////////////////////////////////////////////////////////
+    // TODOSS
+    // determine the ranks of your 4 neighbours
+    ////////////////////////////////////////////////////////////////////
+    neighbour_east  = -2; //mpi_rank+1;
+    neighbour_west  = -2; //mpi_rank-1;
+    neighbour_north = -2; //mpi_rank+ndomx;
+    neighbour_south = -2; //mpi_rank-ndomx;
 
+    neighbour_east  = -2; //mpi_rank+1;
+    neighbour_west  = -2; //mpi_rank-1;
+    neighbour_north = -2; //mpi_rank+ndomx;
+    neighbour_south = -2; //mpi_rank-ndomx;
+
+    // set rank of neighbours that lie outside the domain to be -1
     if (domx == 1) {
         neighbour_west = -1;
     }
@@ -84,13 +93,21 @@ void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
 
 // print domain decomposition information to stdout
 void SubDomain::print() {
+    if(rank==0) {
+        std::cout << "-----------------------------------------------------------------------" << std::endl;
+        std::cout << "there are " << size << " subdomains on a "
+                  << ndomx << " * " << ndomy << " grid " << std::endl;
+        std::cout << "global grid has dimensions "
+                  <<  options.nx << " * " << options.ny << std::endl;
+        std::cout << "-----------------------------------------------------------------------" << std::endl;
+    }
     for(int i=0; i<size; i++) {
         if(rank == i) {
-            std::cout << "rank " << rank << "/" << size
-                      << " : (" << domx << "," << domy << ")"
-                      << " neigh N:S " << neighbour_north << ":" << neighbour_south
-                      << " neigh E:W " << neighbour_east << ":" << neighbour_west
-                      << " local dims " << nx << " x " << ny
+            std::cout << "rank " << rank
+                      << " (" << domx << "," << domy << ")"
+                      << " : neighbours N:S:E:W (" << neighbour_north << "  " << neighbour_south
+                      << "  " << neighbour_east << "  " << neighbour_west
+                      << ") : local dims " << nx << " * " << ny
                       << std::endl;
         }
         MPI_Barrier(MPI_COMM_WORLD);
