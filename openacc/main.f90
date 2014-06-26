@@ -122,13 +122,6 @@ program diffusion_serial
         enddo
     enddo
 
-    ! pack the boundaries with initial conditions where they are at
-    ! inter-process interfaces
-    if (domain%neighbour_north>=0) bndN = x_new(:,ny)
-    if (domain%neighbour_south>=0) bndS = x_new(:,1)
-    if (domain%neighbour_east>=0)  bndE = x_new(nx,:)
-    if (domain%neighbour_west>=0)  bndW = x_new(1,:)
-
     ! ****************** mpi reference version ******************
     time_in_bcs  = 0.0
     time_in_diff = 0.0
@@ -379,31 +372,21 @@ subroutine initialize_mpi(options, domain)
     options%ny = ny
     options%N  = nx*ny
 
-    ! detemine information about neighbours
-    domain%on_boundary_west  = .false.
-    domain%on_boundary_east  = .false.
-    domain%on_boundary_north = .false.
-    domain%on_boundary_south = .false.
-
     domain%neighbour_east  = mpi_rank+1
     domain%neighbour_west  = mpi_rank-1
     domain%neighbour_north = mpi_rank+ndomx
     domain%neighbour_south = mpi_rank-ndomx
 
     if (domx .eq. 1) then
-        domain%on_boundary_west = .true.
         domain%neighbour_west = -1
     endif
     if (domx .eq. ndomx) then
-        domain%on_boundary_east = .true.
         domain%neighbour_east = -1
     endif
     if (domy .eq. 1) then
-        domain%on_boundary_south = .true.
         domain%neighbour_south = -1
     endif
     if (domy .eq. ndomy) then
-        domain%on_boundary_north = .true.
         domain%neighbour_north = -1
     endif
 

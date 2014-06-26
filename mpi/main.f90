@@ -107,13 +107,6 @@ program diffusion_serial
         enddo
     enddo
 
-    ! pack the boundaries with initial conditions where they are at
-    ! inter-process interfaces
-    if (domain%neighbour_north>=0) bndN = x_new(:,ny)
-    if (domain%neighbour_south>=0) bndS = x_new(:,1)
-    if (domain%neighbour_east>=0)  bndE = x_new(nx,:)
-    if (domain%neighbour_west>=0)  bndW = x_new(1,:)
-
     ! ****************** mpi reference version ******************
     time_in_bcs  = 0.0
     time_in_diff = 0.0

@@ -42,13 +42,6 @@ type subdomainT
     ! mpi info
     integer size
     integer rank
-
-    ! boolean flags that indicate whether the sub-domain is on 
-    ! any of the 4 global boundaries
-    logical on_boundary_north
-    logical on_boundary_south
-    logical on_boundary_east
-    logical on_boundary_west
 end type
 
 ! fields that hold the solution
