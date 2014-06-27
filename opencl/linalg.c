@@ -1,6 +1,14 @@
 // linear algebra subroutines
 // Ben Cumming @ CSCS
 
+#ifdef __APPLE__
+#include <OpenCL/opencl.h>
+#else
+#include <CL/cl.h>
+#endif
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#include <clAmdBlas.h>
+
 #include "linalg.h"
 #include "operators.h"
 #include "stats.h"
@@ -10,8 +18,8 @@
 #include <stdlib.h>
 
 int cg_initialized = 0;
-double *r = NULL, *Ap = NULL, *p = NULL;
-double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
+cl_mem r = NULL, Ap = NULL, p = NULL;
+cl_mem Fx = NULL, Fxold = NULL, v = NULL, xold = NULL,rold= NULL, rnew=NULL, scratchBuff=NULL, dotProduct=NULL; // 1d
 
 
 // initialize temporary storage fields used by the cg solver
@@ -19,145 +27,72 @@ double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
 // to the CG solver. This is useful if we want to avoid malloc/free calls
 // on the device for the OpenACC implementation (feel free to suggest a better
 // method for doing this)
-void cg_init(const int N)
+void cg_init(const int N,cl_context * context, cl_program * program, cl_kernel * kernel, cl_mem b_device, double * eps_inv)
 {
-    Ap    = (double*) malloc(N*sizeof(double));
-    r     = (double*) malloc(N*sizeof(double)); 
-    p     = (double*) malloc(N*sizeof(double));
-    Fx    = (double*) malloc(N*sizeof(double));
-    Fxold = (double*) malloc(N*sizeof(double));
-    v     = (double*) malloc(N*sizeof(double));
-    xold  = (double*) malloc(N*sizeof(double));
-
+    cl_int ret;
+	Ap = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	r = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	p = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	Fx = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	Fxold = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	v = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	xold = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	rold = clCreateBuffer(*context, CL_MEM_READ_WRITE, sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	rnew = clCreateBuffer(*context, CL_MEM_READ_WRITE, sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	scratchBuff = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	dotProduct = clCreateBuffer(*context, CL_MEM_READ_WRITE, N*sizeof(double), NULL, &ret);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T ALLOCATE DEVICE MEMORY\n");
+	
+	ret=clSetKernelArg(kernel[2],0,sizeof(cl_mem),(void*)&r);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[2],1,sizeof(cl_mem),(void*)&b_device);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[2],2,sizeof(double),eps_inv);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[2],3,sizeof(cl_mem),(void*)&Fx);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[2],4,sizeof(cl_mem),(void*)&Fxold);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[5],0,sizeof(cl_mem),(void*)&Ap);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[5],2,sizeof(cl_mem),(void*)&Fx);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+	ret=clSetKernelArg(kernel[5],3,sizeof(cl_mem),(void*)&Fxold);
+	if (ret!=CL_SUCCESS)
+		printf("CAN'T SET KERNEL ARGUMENT\n");
+			
     cg_initialized = 1;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//  blas level 1 reductions
-////////////////////////////////////////////////////////////////////////////////
 
-// computes the inner product of x and y
-// x and y are vectors on length N
-double ss_dot(const double* x, const double* y, const int N)
-{
-    double result = 0;
-	int i;
-    for (i = 0; i < N; i++)
-        result += x[i] * y[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
-    return result;
-}
-
-// computes the 2-norm of x
-// x is a vector on length N
-double ss_norm2(const double* x, const int N)
-{
-    double result = 0;
-	int i;
-    for (i = 0; i < N; i++)
-        result += x[i] * x[i];
-
-    result = sqrt(result);
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
-    return result;
-}
-
-// sets entries in a vector to value
-// x is a vector on length N
-// value is th
-void ss_fill(double* x, const double value, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        x[i] = value;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//  blas level 1 vector-vector operations
-////////////////////////////////////////////////////////////////////////////////
-
-// computes y := alpha*x + y
-// x and y are vectors on length N
-// alpha is a scalar
-void ss_axpy(double* y, const double alpha, const double* x, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] += alpha * x[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-}
-
-// computes y = x + alpha*(l-r)
-// y, x, l and r are vectors of length N
-// alpha is a scalar
-void ss_add_scaled_diff(double* y, const double* x, const double alpha,
-    const double* l, const double* r, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = x[i] + alpha * (l[i] - r[i]);
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 3 * N;
-}
-
-// computes y = alpha*(l-r)
-// y, l and r are vectors of length N
-// alpha is a scalar
-void ss_scaled_diff(double* y, const double alpha,
-    const double* l, const double* r, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = alpha * (l[i] - r[i]);
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-}
-
-// computes y := alpha*x
-// alpha is scalar
-// y and x are vectors on length n
-void ss_scale(double* y, const double alpha, double* x, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = alpha * x[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + N;
-}
-
-// computes linear combination of two vectors y := alpha*x + beta*z
-// alpha and beta are scalar
-// y, x and z are vectors on length n
-void ss_lcomb(double* y, const double alpha, double* x, const double beta,
-    const double* z, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = alpha * x[i] + beta * z[i];
-
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 3 * N;
-}
-
-// copy one vector into another y := x
-// x and y are vectors of length N
-void ss_copy(double* y, const double* x, const int N)
-{
-	int i;
-    for (i = 0; i < N; i++)
-        y[i] = x[i];
-}
 
 // conjugate gradient solver
 // solve the linear system A*x = b for x
@@ -166,55 +101,149 @@ void ss_copy(double* y, const double* x, const int N)
 // x(N)
 // ON ENTRY contains the initial guess for the solution
 // ON EXIT  contains the solution
-void ss_cg(double* x, const double* b, const int maxiters, const double tol, int* success, cl_mem * all_device)
+//x=deltax
+void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device, cl_mem x_new_device, cl_mem x_old_device, cl_mem b_device, cl_mem deltax_device, cl_command_queue * command_queue,cl_context * context,cl_program * program, cl_kernel * kernel,cl_double dxs, cl_double alpha_device,int nx, int ny)
 {
-    //struct discretization_t* options = data::options;
-
-    // this is the dimension of the linear system that we are to solve
+    cl_event event = NULL;
+	cl_int ret;
+	char err;
+	//struct discretization_t* options = data::options;
+	 // epslion value use for matrix-vector approximation
+    double eps     = 1.e-8;
+    double eps_inv = 1. / eps;
+	// this is the dimension of the linear system that we are to solve
     int N = options.N;
 
     if (!cg_initialized)
     {
         printf("INITIALIZING CG STATE\n");
-        cg_init(N);
+        cg_init(N, context,program,kernel,b_device,&eps_inv);
     }
 
-    // epslion value use for matrix-vector approximation
-    double eps     = 1.e-8;
-    double eps_inv = 1. / eps;
-
-    // allocate memory for temporary storage
-    ss_fill(Fx,    0.0, N);
-    ss_fill(Fxold, 0.0, N);
-    ss_copy(xold, x, N);
-
+   
+	// allocate memory for temporary storage
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//ss_fill(Fx,    0.0, N);
+    //ss_fill(Fxold, 0.0, N);
+    //ss_copy(xold, x, N);
+	cl_double pattern=0;
+	err=clEnqueueFillBuffer(*command_queue, Fx, &pattern,sizeof(double),0,N*sizeof(double),0,NULL,&event);
+	if (err != CL_SUCCESS) {
+		printf("clAmdFill() failed with %d\n", err);
+		ret = 1;
+	}
+	else {
+		err = clWaitForEvents(1, &event);
+	}
+		
+	err=clEnqueueFillBuffer(*command_queue, Fxold, &pattern,sizeof(double),0,N*sizeof(double),0,NULL,&event);
+	if (err != CL_SUCCESS) {
+		printf("clAmdFill() failed with %d\n", err);
+		ret = 1;
+	}
+	else {
+		err = clWaitForEvents(1, &event);
+	}
+	
+	err=ret=clEnqueueCopyBuffer(*command_queue, deltax_device,xold,0,0,N*sizeof(double), 0, NULL, &event);
+	if (err != CL_SUCCESS) {
+		printf("clAmdFill() failed with %d\n", err);
+		ret = 1;
+	}
+	else {
+		err = clWaitForEvents(1, &event);
+	}
+	
+	
+	
     // matrix vector multiplication is approximated with
     // A*v = 1/epsilon * ( F(x+epsilon*v) - F(x) )
     //     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
     // we compute Fxold at startup
     // we have to keep x so that we can compute the F(x+exps*v)
-    
-	diffusion(x, Fxold);
-
-    // v = x + epsilon*x
-    ss_scale(v, 1.0 + eps, x, N);
-
+    	
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&deltax_device);
+	ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&Fxold);
+	ret=clSetKernelArg(kernel[0],2,sizeof(cl_mem),(void*)&x_old_device);
+	ret=clSetKernelArg(kernel[0],3,sizeof(cl_mem),(void*)&bnd_device);
+	ret=clSetKernelArg(kernel[0],4,sizeof(int),&nx);
+	ret=clSetKernelArg(kernel[0],5,sizeof(int),&ny);
+	ret=clSetKernelArg(kernel[0],6,sizeof(double),&dxs);
+	ret=clSetKernelArg(kernel[0],7,sizeof(double),&alpha_device);
+	size_t global_item_size=N;
+	size_t local_item_size= 1;
+	err= clEnqueueNDRangeKernel(*command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, &event);
+	if (err != CL_SUCCESS) {
+		printf("clAmdFill() failed with %d\n", err);
+		ret = 1;
+	}
+	else {
+		err = clWaitForEvents(1, &event);
+	}    
+	
+	
+	
+	ret=clSetKernelArg(kernel[3],0,sizeof(cl_mem),(void*)&v);
+	ret=clSetKernelArg(kernel[3],1,sizeof(cl_mem),(void*)&deltax_device);
+	cl_double eps_blas2=1.0+eps;
+	ret=clSetKernelArg(kernel[3],2,sizeof(double),&eps_blas2);
+	global_item_size=N;
+	local_item_size= 1;
+	ret= clEnqueueNDRangeKernel(*command_queue, kernel[3], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+	
+	
+	
+	
     // Fx = F(v)
-    diffusion(v, Fx);
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
+	
+	ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&v);
+	ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&Fx);
+	global_item_size=N;
+	local_item_size= 1;
+	ret= clEnqueueNDRangeKernel(*command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+	 
+	//diffusion(v, Fx);
 
     // r = b - A*x
     // where A*x = (Fx-Fxold)/eps
-    ss_add_scaled_diff(r, b, -eps_inv, Fx, Fxold, N);
-
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//ss_add_scaled_diff(r, b, -eps_inv, Fx, Fxold, N);
+	//merged_blas1();
+	
+	ret=clSetKernelArg(kernel[2],0,sizeof(cl_mem),(void*)&r);
+	ret=clSetKernelArg(kernel[2],1,sizeof(cl_mem),(void*)&b_device);
+	global_item_size=N;
+	local_item_size= 1;
+	cl_double eps_blas1=-eps_inv;
+	ret=clSetKernelArg(kernel[2],2,sizeof(cl_double),&eps_blas1);
+	ret=clSetKernelArg(kernel[2],3,sizeof(cl_mem),(void*)&Fx);
+	ret=clSetKernelArg(kernel[2],4,sizeof(cl_mem),(void*)&Fxold);
+	ret=clSetKernelArg(kernel[2],5,sizeof(cl_mem),(void*)&p);
+	ret= clEnqueueNDRangeKernel(*command_queue, kernel[2], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+	
     // p = r
-    ss_copy(p, r, N);
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//ss_copy(p, r, N);
 
     // rold = <r,r>
-    double rold = ss_dot(r, r, N), rnew = rold;
+    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//double rold = ss_dot(r, r, N), rnew = rold;
 
+	clAmdBlasDdot(N,rold,0,r,0,1,r,0,1,scratchBuff,1,command_queue,0,NULL,NULL);
+	
+	
+	//ret=clEnqueueCopyBuffer(*command_queue, dotProduct,rold,0,0,sizeof(double), 0, NULL, NULL);
+		
+	ret=clEnqueueCopyBuffer(*command_queue, rold,rnew,0,0,sizeof(double), 0, NULL, NULL);
+	double rold_cpu,rnew_cpu;
+	ret=clEnqueueReadBuffer(*command_queue, rold, CL_TRUE, 0 ,sizeof(double), &rold_cpu,0, NULL, NULL);
+	
     // check for convergence
     *success = 0;
-    if (sqrt(rold) < tol)
+    if (sqrt(rold_cpu) < tol)
     {
         *success = 1;
         return;
@@ -224,40 +253,95 @@ void ss_cg(double* x, const double* b, const int maxiters, const double tol, int
     for (iter = 1; iter <= maxiters; iter++)
     {
         // Ap = A*p
-        ss_lcomb(v, 1.0, xold, eps, p, N);
-        diffusion(v, Fx);
-        ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
-
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			
+		ret=clSetKernelArg(kernel[4],0,sizeof(cl_mem),(void*)&v);
+		ret=clSetKernelArg(kernel[4],1,sizeof(cl_mem),(void*)&xold);
+		cl_double alpha_lcomb=1.0;
+		ret=clSetKernelArg(kernel[4],2,sizeof(double),&alpha_lcomb);
+		cl_double beta_lcomb=eps;
+		ret=clSetKernelArg(kernel[4],3,sizeof(double),&beta_lcomb);
+		ret=clSetKernelArg(kernel[4],4,sizeof(double),&p);
+		global_item_size=N;
+		local_item_size= 1;
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[4], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+		if (ret != CL_SUCCESS) {
+		printf("clAmdFill() failed with %d\n", ret);
+		ret = 1;
+		}
+	
+		ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&v);
+		ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&Fx);
+		global_item_size=N;
+		local_item_size= 1;
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+    
+		
+        global_item_size=N;
+		local_item_size= 1;
+		cl_double eps_inv_blas=eps_inv;
+		ret=clSetKernelArg(kernel[5],1,sizeof(cl_double),&eps_inv_blas);
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[5], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+		
         // alpha = rold / p'*Ap
-        double alpha = rold / ss_dot(p, Ap, N);
-
+		
+		        
+		clAmdBlasDdot(N,dotProduct,0,p,0,1,Ap,0,1,scratchBuff,1,command_queue,0,NULL,NULL);
+		cl_double ss_dot_res;
+		ret=clEnqueueReadBuffer(*command_queue, dotProduct, CL_TRUE, 0 ,sizeof(double), &ss_dot_res,0, NULL, NULL);
+	
+		
+		cl_double cl_alpha = rold_cpu / ss_dot_res;
+		
         // x += alpha*p
-        ss_axpy(x, alpha, p, N);
-
+        cl_double daxpy_alpha = cl_alpha;
+		clAmdBlasDaxpy(N, daxpy_alpha, p,0, 1, deltax_device, 0, 1, 1, command_queue,0, NULL, NULL);
+		
+			
         // r -= alpha*Ap
-        ss_axpy(r, -alpha, Ap, N);
-
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//ss_axpy(r, -alpha, Ap, N);
+		
+		daxpy_alpha = -cl_alpha;
+		clAmdBlasDaxpy(N, daxpy_alpha, Ap,0, 1, r, 0, 1, 1, command_queue,0, NULL, NULL);
+		
         // find new norm
-        rnew = ss_dot(r, r, N);
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		clAmdBlasDdot(N,dotProduct,0,r,0,1,r,0,1,scratchBuff,1,command_queue,0,NULL,NULL);
+		ret=clEnqueueReadBuffer(*command_queue, dotProduct, CL_TRUE, 0 ,sizeof(double), &rnew_cpu,0, NULL, NULL);
+		ret=clEnqueueCopyBuffer(*command_queue, dotProduct,rnew,0,0,sizeof(double), 0, NULL, NULL);
+	
 
         // test for convergence
-        if (sqrt(rnew) < tol)
+        if (sqrt(rnew_cpu) < tol)
         {
             *success = 1;
             break;
         }
 
         // p = r + rnew.rold * p
-        ss_lcomb(p, 1.0, r, rnew / rold, p, N);
-
-        rold = rnew;
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		ret=clSetKernelArg(kernel[4],0,sizeof(cl_mem),(void*)&p);
+		ret=clSetKernelArg(kernel[4],1,sizeof(cl_mem),(void*)&r);
+		alpha_lcomb=1.0;
+		ret=clSetKernelArg(kernel[4],2,sizeof(double),&alpha_lcomb);
+		beta_lcomb=rnew_cpu/rold_cpu;
+		ret=clSetKernelArg(kernel[4],3,sizeof(double),&beta_lcomb);
+		ret=clSetKernelArg(kernel[4],4,sizeof(double),&p);
+		global_item_size=N;
+		local_item_size= 1;
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[4], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+    
+		ret=clEnqueueCopyBuffer(*command_queue, rnew,rold,0,0,sizeof(double), 0, NULL, NULL);
+	    rold_cpu=rnew_cpu;
+		//rold = rnew;
     }
     iters_cg += iter;
 
     if (!*success)
     {
         fprintf(stderr, "ERROR: CG failed to converge after %d iterations\n", maxiters);
-        fprintf(stderr, "       achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
+        fprintf(stderr, "       achived tol = %E, required tol = %E\n", sqrt(rnew_cpu), tol);
     }
 }
 
