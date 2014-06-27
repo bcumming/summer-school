@@ -163,6 +163,7 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
     // we have to keep x so that we can compute the F(x+exps*v)
     	
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
 	ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&deltax_device);
 	ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&Fxold);
 	ret=clSetKernelArg(kernel[0],2,sizeof(cl_mem),(void*)&x_old_device);
@@ -171,25 +172,45 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
 	ret=clSetKernelArg(kernel[0],5,sizeof(int),&ny);
 	ret=clSetKernelArg(kernel[0],6,sizeof(double),&dxs);
 	ret=clSetKernelArg(kernel[0],7,sizeof(double),&alpha_device);
-	size_t global_item_size=N;
-	size_t local_item_size= 1;
-	err= clEnqueueNDRangeKernel(*command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, &event);
-	if (err != CL_SUCCESS) {
-		printf("clAmdFill() failed with %d\n", err);
-		ret = 1;
-	}
-	else {
-		err = clWaitForEvents(1, &event);
-	}    
+	size_t global_item_size1[2]={nx,ny};
+	size_t local_item_size1[2]={16,16};
+	err= clEnqueueNDRangeKernel(*command_queue, kernel[0], 2, NULL, global_item_size1, local_item_size1, 0 ,NULL, &event);
 	
+	
+	ret=clSetKernelArg(kernel[1],0,sizeof(cl_mem),(void*)&deltax_device);
+	ret=clSetKernelArg(kernel[1],1,sizeof(cl_mem),(void*)&Fxold);
+	ret=clSetKernelArg(kernel[1],2,sizeof(cl_mem),(void*)&x_old_device);
+	ret=clSetKernelArg(kernel[1],3,sizeof(cl_mem),(void*)&bnd_device);
+	ret=clSetKernelArg(kernel[1],4,sizeof(int),&nx);
+	ret=clSetKernelArg(kernel[1],5,sizeof(int),&ny);
+	dxs = (1000.0*options.dx*options.dx);
+	ret=clSetKernelArg(kernel[1],6,sizeof(double),&dxs);
+	ret=clSetKernelArg(kernel[1],7,sizeof(double),&alpha_device);
+	size_t global_item_size2[2]={(ny-2),2};
+	size_t local_item_size2[2]={256,1};
+	err= clEnqueueNDRangeKernel(*command_queue, kernel[1], 2, NULL, global_item_size2, local_item_size2, 0 ,NULL, &event);
+	
+	
+	ret=clSetKernelArg(kernel[6],0,sizeof(cl_mem),(void*)&deltax_device);
+	ret=clSetKernelArg(kernel[6],1,sizeof(cl_mem),(void*)&Fxold);
+	ret=clSetKernelArg(kernel[6],2,sizeof(cl_mem),(void*)&x_old_device);
+	ret=clSetKernelArg(kernel[6],3,sizeof(cl_mem),(void*)&bnd_device);
+	ret=clSetKernelArg(kernel[6],4,sizeof(int),&nx);
+	ret=clSetKernelArg(kernel[6],5,sizeof(int),&ny);
+	dxs = (1000.0*options.dx*options.dx);
+	ret=clSetKernelArg(kernel[6],6,sizeof(double),&dxs);
+	ret=clSetKernelArg(kernel[6],7,sizeof(double),&alpha_device);
+	size_t global_item_size3[2]={(nx),2};
+	size_t local_item_size3[2]={256,1};
+	err= clEnqueueNDRangeKernel(*command_queue, kernel[6], 1, NULL, global_item_size3, local_item_size3, 0 ,NULL, &event);
 	
 	
 	ret=clSetKernelArg(kernel[3],0,sizeof(cl_mem),(void*)&v);
 	ret=clSetKernelArg(kernel[3],1,sizeof(cl_mem),(void*)&deltax_device);
 	cl_double eps_blas2=1.0+eps;
 	ret=clSetKernelArg(kernel[3],2,sizeof(double),&eps_blas2);
-	global_item_size=N;
-	local_item_size= 1;
+	size_t global_item_size=N;
+	size_t local_item_size= 256;
 	ret= clEnqueueNDRangeKernel(*command_queue, kernel[3], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
 	
 	
@@ -201,9 +222,15 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
 	
 	ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&v);
 	ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&Fx);
-	global_item_size=N;
-	local_item_size= 1;
-	ret= clEnqueueNDRangeKernel(*command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+	ret=clSetKernelArg(kernel[1],0,sizeof(cl_mem),(void*)&v);
+	ret=clSetKernelArg(kernel[1],1,sizeof(cl_mem),(void*)&Fx);
+	ret=clSetKernelArg(kernel[6],0,sizeof(cl_mem),(void*)&v);
+	ret=clSetKernelArg(kernel[6],1,sizeof(cl_mem),(void*)&Fx);
+	//global_item_size=N;
+	//local_item_size=256;
+	ret= clEnqueueNDRangeKernel(*command_queue, kernel[0], 2, NULL, global_item_size1, local_item_size1, 0 ,NULL, NULL);
+	ret= clEnqueueNDRangeKernel(*command_queue, kernel[1], 1, NULL, global_item_size2, local_item_size2, 0 ,NULL, NULL);
+	ret= clEnqueueNDRangeKernel(*command_queue, kernel[6], 1, NULL, global_item_size3, local_item_size3, 0 ,NULL, NULL);
 	 
 	//diffusion(v, Fx);
 
@@ -216,7 +243,7 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
 	ret=clSetKernelArg(kernel[2],0,sizeof(cl_mem),(void*)&r);
 	ret=clSetKernelArg(kernel[2],1,sizeof(cl_mem),(void*)&b_device);
 	global_item_size=N;
-	local_item_size= 1;
+	local_item_size= 256;
 	cl_double eps_blas1=-eps_inv;
 	ret=clSetKernelArg(kernel[2],2,sizeof(cl_double),&eps_blas1);
 	ret=clSetKernelArg(kernel[2],3,sizeof(cl_mem),(void*)&Fx);
@@ -263,7 +290,7 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
 		ret=clSetKernelArg(kernel[4],3,sizeof(double),&beta_lcomb);
 		ret=clSetKernelArg(kernel[4],4,sizeof(double),&p);
 		global_item_size=N;
-		local_item_size= 1;
+		local_item_size= 256;
 		ret= clEnqueueNDRangeKernel(*command_queue, kernel[4], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
 		if (ret != CL_SUCCESS) {
 		printf("clAmdFill() failed with %d\n", ret);
@@ -272,13 +299,19 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
 	
 		ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&v);
 		ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&Fx);
-		global_item_size=N;
-		local_item_size= 1;
-		ret= clEnqueueNDRangeKernel(*command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+		ret=clSetKernelArg(kernel[1],0,sizeof(cl_mem),(void*)&v);
+		ret=clSetKernelArg(kernel[1],1,sizeof(cl_mem),(void*)&Fx);
+		ret=clSetKernelArg(kernel[6],0,sizeof(cl_mem),(void*)&v);
+		ret=clSetKernelArg(kernel[6],1,sizeof(cl_mem),(void*)&Fx);
+		//global_item_size=N;
+		//local_item_size=256;
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[0], 2, NULL, global_item_size1, local_item_size1, 0 ,NULL, NULL);
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[1], 1, NULL, global_item_size2, local_item_size2, 0 ,NULL, NULL);
+		ret= clEnqueueNDRangeKernel(*command_queue, kernel[6], 1, NULL, global_item_size3, local_item_size3, 0 ,NULL, NULL);
     
 		
         global_item_size=N;
-		local_item_size= 1;
+		local_item_size= 256;
 		cl_double eps_inv_blas=eps_inv;
 		ret=clSetKernelArg(kernel[5],1,sizeof(cl_double),&eps_inv_blas);
 		ret= clEnqueueNDRangeKernel(*command_queue, kernel[5], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
@@ -329,7 +362,7 @@ void ss_cg(const int maxiters, const double tol, int* success, cl_mem bnd_device
 		ret=clSetKernelArg(kernel[4],3,sizeof(double),&beta_lcomb);
 		ret=clSetKernelArg(kernel[4],4,sizeof(double),&p);
 		global_item_size=N;
-		local_item_size= 1;
+		local_item_size= 256;
 		ret= clEnqueueNDRangeKernel(*command_queue, kernel[4], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
     
 		ret=clEnqueueCopyBuffer(*command_queue, rnew,rold,0,0,sizeof(double), 0, NULL, NULL);
