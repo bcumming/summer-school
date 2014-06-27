@@ -407,7 +407,8 @@ int main(int argc, char* argv[])
             break;
         }
     }
-	
+	ret=clEnqueueReadBuffer(command_queue, x_new_device, CL_TRUE, 0 ,N*sizeof(double), x_new,0, NULL, NULL);
+			
 	 // get times
     timespent += omp_get_wtime();
     unsigned long long flops_total = flops_diff + flops_blas1;
