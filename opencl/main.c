@@ -122,16 +122,25 @@ int main(int argc, char* argv[])
     double* deltax = (double*) malloc(N*sizeof(double));
 
 	FILE *fp;
-	char *source_str_diffusion1,*source_str_merged_blas1, *source_str_merged_blas2,*source_str_merged_blas3,*source_str_merged_blas4;
-	size_t source_size[6];
+	char *source_str_diffusion_center,*source_str_diffusion_east_west,*source_str_diffusion_north_south_corners,*source_str_merged_blas1, *source_str_merged_blas2,*source_str_merged_blas3,*source_str_merged_blas4;
+	size_t source_size[8];
 	
 	fp= fopen("operators.cl","r");
 	if (!fp){
 		printf("Failed to load kernel/ \n");
 		exit(1);
 	}
-	source_str_diffusion1=(char*)malloc(MAX_SOURCE_SIZE);
-	source_size[0]=fread(source_str_diffusion1,1,MAX_SOURCE_SIZE,fp);
+	source_str_diffusion_center=(char*)malloc(MAX_SOURCE_SIZE);
+	source_size[0]=fread(source_str_diffusion_center,1,MAX_SOURCE_SIZE,fp);
+	fclose(fp);
+	
+	fp= fopen("operators1.cl","r");
+	if (!fp){
+		printf("Failed to load kernel/ \n");
+		exit(1);
+	}
+	source_str_diffusion_east_west=(char*)malloc(MAX_SOURCE_SIZE);
+	source_size[1]=fread(source_str_diffusion_east_west,1,MAX_SOURCE_SIZE,fp);
 	fclose(fp);
 	
 	fp= fopen("merged_blas1.cl","r");
@@ -169,6 +178,17 @@ int main(int argc, char* argv[])
 	source_str_merged_blas4=(char*)malloc(MAX_SOURCE_SIZE);
 	source_size[5]=fread(source_str_merged_blas4,1,MAX_SOURCE_SIZE,fp);
 	fclose(fp);
+	
+	fp= fopen("operators2.cl","r");
+	if (!fp){
+		printf("Failed to load kernel/ \n");
+		exit(1);
+	}
+	source_str_diffusion_north_south_corners=(char*)malloc(MAX_SOURCE_SIZE);
+	source_size[6]=fread(source_str_diffusion_north_south_corners,1,MAX_SOURCE_SIZE,fp);
+	fclose(fp);
+	
+	
 	
 	cl_platform_id platform_id=NULL;
 	cl_device_id device_id = NULL;
@@ -265,10 +285,12 @@ int main(int argc, char* argv[])
     cl_double alpha_device=alpha;
 	double tolerance = 1.e-6;
     int timestep;
-	const char options_cl[] ="-cl-opt-disable";
 	
-	cl_program program[6];
-	program[0]=clCreateProgramWithSource(context,1, (const char **)&source_str_diffusion1, (const size_t*)&source_size[0], &ret);
+	cl_program program[8];
+	program[0]=clCreateProgramWithSource(context,1, (const char **)&source_str_diffusion_center, (const size_t*)&source_size[0], &ret);
+	if (ret!=CL_SUCCESS)
+		printf("NO PROGRAM");
+	program[1]=clCreateProgramWithSource(context,1, (const char **)&source_str_diffusion_east_west, (const size_t*)&source_size[1], &ret);
 	if (ret!=CL_SUCCESS)
 		printf("NO PROGRAM");
 	program[2]=clCreateProgramWithSource(context,1, (const char **)&source_str_merged_blas1, (const size_t*)&source_size[2], &ret);
@@ -283,12 +305,19 @@ int main(int argc, char* argv[])
 	program[5]=clCreateProgramWithSource(context,1, (const char **)&source_str_merged_blas4, (const size_t*)&source_size[5], &ret);
 	if (ret!=CL_SUCCESS)
 		printf("NO PROGRAM");
+	program[6]=clCreateProgramWithSource(context,1, (const char **)&source_str_diffusion_north_south_corners, (const size_t*)&source_size[6], &ret);
+	if (ret!=CL_SUCCESS)
+		printf("NO PROGRAM");
 	
-	
+	const char options_cl[] ="";
 	ret=clBuildProgram(program[0],1, &device_id, options_cl, NULL, NULL);
 	char err=ret;
-	//if (ret!=CL_SUCCESS)
-		//printf("%d",err);
+	if (ret!=CL_SUCCESS)
+		printf("%d",err);
+	ret=clBuildProgram(program[1],1, &device_id, options_cl, NULL, NULL);
+	err=ret;
+	if (ret!=CL_SUCCESS)
+		printf("%d",err);
 	ret=clBuildProgram(program[2],1, &device_id, options_cl, NULL, NULL);
 	err=ret;
 	if (ret!=CL_SUCCESS)
@@ -305,10 +334,16 @@ int main(int argc, char* argv[])
 	err=ret;
 	if (ret!=CL_SUCCESS)
 		printf("%d",err);
+	ret=clBuildProgram(program[6],1, &device_id, options_cl, NULL, NULL);
+	err=ret;
+	if (ret!=CL_SUCCESS)
+		printf("%d",err);
 	
-	
-	cl_kernel kernel[6];
-	kernel[0]= clCreateKernel(program[0], "cl_diffusion", &ret);
+	cl_kernel kernel[8];
+	kernel[0]= clCreateKernel(program[0], "cl_diffusion_center", &ret);
+	if (ret!=CL_SUCCESS)
+		printf("NO KERNEL 0");
+	kernel[1]= clCreateKernel(program[1], "cl_diffusion_east_west", &ret);
 	if (ret!=CL_SUCCESS)
 		printf("NO KERNEL 1");
 	kernel[2]= clCreateKernel(program[2], "cl_merged_blas1", &ret);
@@ -322,8 +357,10 @@ int main(int argc, char* argv[])
 		printf("NO KERNEL 4");	
 	kernel[5]= clCreateKernel(program[5], "cl_merged_blas4", &ret);
 		if (ret!=CL_SUCCESS)
-		printf("NO KERNEL 4");	
-	
+		printf("NO KERNEL 5");	
+	kernel[6]= clCreateKernel(program[6], "cl_diffusion_north_south_corners", &ret);
+		if (ret!=CL_SUCCESS)
+		printf("NO KERNEL 6");
 	
 	ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&x_new_device);
 	ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&b_device);
@@ -337,10 +374,38 @@ int main(int argc, char* argv[])
 	
 	if (ret!=CL_SUCCESS)
 		printf("NO ARGS");
-	size_t global_item_size=N;
-	size_t local_item_size= 1;
+	size_t global_item_size1[2]={nx,ny};
+	size_t local_item_size1[2]={16,16};
+
+	ret=clSetKernelArg(kernel[1],0,sizeof(cl_mem),(void*)&x_new_device);
+	ret=clSetKernelArg(kernel[1],1,sizeof(cl_mem),(void*)&b_device);
+	ret=clSetKernelArg(kernel[1],2,sizeof(cl_mem),(void*)&x_old_device);
+	ret=clSetKernelArg(kernel[1],3,sizeof(cl_mem),(void*)&bnd_device);
+	ret=clSetKernelArg(kernel[1],4,sizeof(int),&nx);
+	ret=clSetKernelArg(kernel[1],5,sizeof(int),&ny);
+	dxs = (1000.0*options.dx*options.dx);
+	ret=clSetKernelArg(kernel[1],6,sizeof(double),&dxs);
+	ret=clSetKernelArg(kernel[1],7,sizeof(double),&alpha_device);
 	
+	if (ret!=CL_SUCCESS)
+		printf("NO ARGS");
+	size_t global_item_size2[2]={(ny-2),2};
+	size_t local_item_size2[2]={256,1};
 	
+	ret=clSetKernelArg(kernel[6],0,sizeof(cl_mem),(void*)&x_new_device);
+	ret=clSetKernelArg(kernel[6],1,sizeof(cl_mem),(void*)&b_device);
+	ret=clSetKernelArg(kernel[6],2,sizeof(cl_mem),(void*)&x_old_device);
+	ret=clSetKernelArg(kernel[6],3,sizeof(cl_mem),(void*)&bnd_device);
+	ret=clSetKernelArg(kernel[6],4,sizeof(int),&nx);
+	ret=clSetKernelArg(kernel[6],5,sizeof(int),&ny);
+	dxs = (1000.0*options.dx*options.dx);
+	ret=clSetKernelArg(kernel[6],6,sizeof(double),&dxs);
+	ret=clSetKernelArg(kernel[6],7,sizeof(double),&alpha_device);
+	
+	if (ret!=CL_SUCCESS)
+		printf("NO ARGS");
+	size_t global_item_size3[2]={(nx),2};
+	size_t local_item_size3[2]={256,1};
 	
 	// start timer
     double timespent = -omp_get_wtime();
@@ -370,7 +435,13 @@ int main(int argc, char* argv[])
             //diffusion(x_new, b);
 			ret=clSetKernelArg(kernel[0],0,sizeof(cl_mem),(void*)&x_new_device);
 			ret=clSetKernelArg(kernel[0],1,sizeof(cl_mem),(void*)&b_device);
-			ret= clEnqueueNDRangeKernel(command_queue, kernel[0], 1, NULL, &global_item_size, &local_item_size, 0 ,NULL, NULL);
+			ret=clSetKernelArg(kernel[1],0,sizeof(cl_mem),(void*)&x_new_device);
+			ret=clSetKernelArg(kernel[1],1,sizeof(cl_mem),(void*)&b_device);
+			ret=clSetKernelArg(kernel[6],0,sizeof(cl_mem),(void*)&x_new_device);
+			ret=clSetKernelArg(kernel[6],1,sizeof(cl_mem),(void*)&b_device);
+			ret= clEnqueueNDRangeKernel(command_queue, kernel[0], 2, NULL, global_item_size1, local_item_size1, 0 ,NULL, NULL);
+			ret= clEnqueueNDRangeKernel(command_queue, kernel[1], 2, NULL, global_item_size2, local_item_size2, 0 ,NULL, NULL);
+			ret= clEnqueueNDRangeKernel(command_queue, kernel[6], 2, NULL, global_item_size3, local_item_size3, 0 ,NULL, NULL);
 									
 			//ss_norm2(b, N);
 			ret=clAmdBlasDnrm2(N,residual_device, 0, b_device,0,1, scratchBuff_nrm2,1,&command_queue,0,NULL,NULL);
@@ -416,16 +487,12 @@ int main(int argc, char* argv[])
 	clAmdBlasTeardown();
 	ret=clFlush(command_queue);
 	ret=clFinish(command_queue);
-	ret=clReleaseKernel(kernel[0]);
-	ret=clReleaseProgram(program[0]);
-	ret=clReleaseKernel(kernel[2]);
-	ret=clReleaseProgram(program[2]);
-	ret=clReleaseKernel(kernel[3]);
-	ret=clReleaseProgram(program[3]);
-	ret=clReleaseKernel(kernel[4]);
-	ret=clReleaseProgram(program[4]);
-	ret=clReleaseKernel(kernel[5]);
-	ret=clReleaseProgram(program[5]);
+	
+	int loop_temp;
+	for (loop_temp=0;loop_temp<7;loop_temp++){
+		ret=clReleaseKernel(kernel[loop_temp]);
+		ret=clReleaseProgram(program[loop_temp]);
+	}
 	ret=clReleaseMemObject(x_new_device);
 	ret=clReleaseMemObject(x_old_device);
 	ret=clReleaseMemObject(bnd_device);
