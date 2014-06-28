@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <cstdio>
 
-__device__ int pow2roundup(int x)
+inline __device__ int pow2roundup(int x)
 {
     x--;
     x |= x >> 1;

@@ -65,31 +65,31 @@ __device__ void ss_copy(double* y, const double* x, const int N);
 
 namespace gpu
 {
-	namespace ss_dot_kernel
-	{
-		// computes the inner product of x and y
-		// x and y are vectors of length N
-		__global__ void kernel(const double* x, const double* y, double* result);
-		
-		extern __constant__ config_t config;
-	}
-
 	namespace ss_sum_kernel
 	{
 		// computes the sum of x elements
 		// x is a vector of length N
-		__global__ void kernel(const double* x, double* result);
+		__global__ void kernel(int x_length, const double* x, int y_length, const double* y, double* result);
 
-		extern __constant__ config_t config;
+		extern __constant__ config_t configs[MAX_CONFIGS];
+	}
+
+	namespace ss_dot_kernel
+	{
+		// computes the inner product of x and y
+		// x and y are vectors of length N
+		__global__ void kernel(int length, const double* x, const double* y, double* result);
+		
+		extern __constant__ config_t configs[MAX_CONFIGS];
 	}
 
 	namespace ss_norm2_kernel
 	{
 		// computes the 2-norm of x
 		// x is a vector of length N
-		__global__ void kernel(const double* x, double* result);
+		__global__ void kernel(int length, const double* x, double* result);
 
-		extern __constant__ config_t config;
+		extern __constant__ config_t configs[MAX_CONFIGS];
 	}
 
 	namespace ss_fill_kernel

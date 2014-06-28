@@ -33,6 +33,18 @@ namespace
 
 		cg_initialized = 1;
 	}
+
+	inline __device__ int pow2roundup(int x)
+	{
+		x--;
+		x |= x >> 1;
+		x |= x >> 2;
+		x |= x >> 4;
+		x |= x >> 8;
+		x |= x >> 16;
+		x++;
+		return x;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,116 +53,55 @@ namespace
 
 namespace gpu
 {
-	namespace ss_dot_kernel
-	{
-		// computes the inner product of x and y
-		// x and y are vectors of length N
-		__global__ void kernel(const double* x, const double* y, double* result)
-		{
-			extern __shared__ double shared[];
-
-			// Each block hanldes (2 * blockDim.x) elements of reduction.
-			int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
-
-			// Load product of first 2 pairs into shared memory:
-			// idx-th and (idx + blockDim.x)-th.
-			shared[threadIdx.x] = x[i] * y[i] + x[i + blockDim.x] * y[i + blockDim.x];
-	
-			__syncthreads();
-
-			// Reduce pairs in shared memory.
-			for (int s = blockDim.x / 2; s > 32; s >>= 1)
-			{
-				if (threadIdx.x < s)
-					shared[threadIdx.x] += shared[threadIdx.x + s];
-		
-				__syncthreads();
-			}
-	
-			// Unroll last 32 iterations of loop.
-			// There is no need for synchronizations, since all accesses
-			// are within single warp.
-			if (threadIdx.x < 32)
-			{
-				volatile double* vshared = shared;
-				vshared[threadIdx.x] += vshared[threadIdx.x + 32];
-				vshared[threadIdx.x] += vshared[threadIdx.x + 16];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  8];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  4];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  2];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  1];
-			}
-
-			// The first thread writes the result.
-			if (threadIdx.x == 0)
-				result[blockIdx.x] = shared[0];
-		}
-
-		__constant__ config_t config;
-		__device__ double* buffer = NULL;
-	}
-}
-
-__device__ double ss_dot(const double* x, const double* y, const int N)
-{
-	using namespace gpu;
-	using namespace gpu::ss_dot_kernel;
-
-	if (!buffer)
-		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * config.grid.x));
-
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block, config.block.x * sizeof(double)>>>(x, y, buffer));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
-	double result = buffer[0];
-	for (int i = 1; i < config.grid.x; i++)
-		result += buffer[i];
-	
-    // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
-    return result;
-}
-
-namespace gpu
-{
 	namespace ss_sum_kernel
 	{
-		// computes the sum of x elements
-		// x is a vector of length N
-		__global__ void kernel(const double* x, double* result)
+		// computes the sum of x and y
+		// x and y are vectors of lenghts x_length and y_length
+		__global__ void kernel(int x_length, const double* x, int y_length, const double* y, double* result)
 		{
 			extern __shared__ double shared[];
+
+			int half = max(x_length, y_length) / 2 + max(x_length, y_length) % 2;
 
 			// Each block hanldes (2 * blockDim.x) elements of reduction.
 			int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
 
 			// Load product of first 2 pairs into shared memory:
 			// idx-th and (idx + blockDim.x)-th.
-			shared[threadIdx.x] = x[i] + x[i + blockDim.x];
-	
+			shared[threadIdx.x] = 0;
+			if (i < x_length)
+				shared[threadIdx.x] += x[i];
+			if (i < y_length)
+				shared[threadIdx.x] += y[i];
+			if (i + blockDim.x < x_length)
+				shared[threadIdx.x] += x[i + blockDim.x];
+			if (i + blockDim.x < y_length)
+				shared[threadIdx.x] += y[i + blockDim.x];
+
 			__syncthreads();
 
 			// Reduce pairs in shared memory.
-			for (int s = blockDim.x / 2; s > 32; s >>= 1)
+			int start = pow2roundup((blockDim.x + blockDim.x % 2) >> 1);
+			for (int s = start; s > warpSize; s >>= 1)
 			{
-				if (threadIdx.x < s)
+				if ((threadIdx.x < s) && (threadIdx.x + s < half))
 					shared[threadIdx.x] += shared[threadIdx.x + s];
-		
+
 				__syncthreads();
 			}
-	
-			// Unroll last 32 iterations of loop.
+
+			// Unroll last 32 iterations of loop (64 elements).
 			// There is no need for synchronizations, since all accesses
 			// are within single warp.
-			if (threadIdx.x < 32)
+			if (threadIdx.x < warpSize)
 			{
 				volatile double* vshared = shared;
-				vshared[threadIdx.x] += vshared[threadIdx.x + 32];
-				vshared[threadIdx.x] += vshared[threadIdx.x + 16];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  8];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  4];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  2];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  1];
+				if (threadIdx.x + 32 < half) vshared[threadIdx.x] += vshared[threadIdx.x + 32];
+				if (threadIdx.x + 16 < half) vshared[threadIdx.x] += vshared[threadIdx.x + 16];
+				if (threadIdx.x +  8 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  8];
+				if (threadIdx.x +  4 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  4];
+				if (threadIdx.x +  2 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  2];
+				if (threadIdx.x +  1 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  1];
 			}
 
 			// The first thread writes the result.
@@ -158,28 +109,162 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t configs[MAX_CONFIGS];
 		__device__ double* buffer = NULL;
+		__device__ size_t szbuffer = 0;
 	}
 }
 
-__device__ double ss_sum(const double* x, const int N)
+__device__ double ss_sum(const double* x, const double* y, const int length)
 {
 	using namespace gpu;
 	using namespace gpu::ss_sum_kernel;
 
-	if (!buffer)
-		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * config.grid.x));
+	{
+		size_t size = configs[0].grid.x + configs[0].grid.x % 2;
+		if (szbuffer != size)
+		{
+			if (szbuffer)
+				CUDA_ERR_CHECK(cudaFree(buffer));
+			CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * size));
+			szbuffer = size;
+		}
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block, config.block.x * sizeof(double)>>>(x, buffer));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
-	double result = buffer[0];
-	for (int i = 1; i < config.grid.x; i++)
-		result += buffer[i];
-	
+		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
+			length, x, length, y, buffer));
+		CUDA_ERR_CHECK(cudaDeviceSynchronize());
+	}
+
+	for (int i = 1, szbuffer = configs[0].grid.x; szbuffer != 1; i++)
+	{
+		int x_length = szbuffer / 2 + szbuffer % 2;
+		int y_length = szbuffer / 2;
+
+		const double* x_dev = buffer;
+		const double* y_dev = buffer + x_length;
+
+		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
+			x_length, x_dev, y_length, y_dev, buffer));
+		CUDA_ERR_CHECK(cudaDeviceSynchronize());
+
+		szbuffer = configs[i].grid.x;
+	}
+
     // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
+    flops_blas1 += length;
+
+	double result = buffer[0];
+    return result;
+}
+
+__device__ double ss_sum(const double* x, const int N)
+{
+	return ss_sum(x, x + N / 2 + N % 2, N / 2 + N % 2);
+}
+
+namespace gpu
+{
+	namespace ss_dot_kernel
+	{
+		// computes the inner product of x and y
+		// x and y are vectors of length N
+		__global__ void kernel(int length, const double* x, const double* y, double* result)
+		{
+			extern __shared__ double shared[];
+
+			int half = length / 2 + length % 2;
+
+			// Each block hanldes (2 * blockDim.x) elements of reduction.
+			int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
+
+			// Load product of first 2 pairs into shared memory:
+			// idx-th and (idx + blockDim.x)-th.
+			shared[threadIdx.x] = 0;
+			if (i < length)
+				shared[threadIdx.x] += x[i] * y[i];
+			if (i + blockDim.x < length)
+				shared[threadIdx.x] += x[i + blockDim.x] * y[i + blockDim.x];
+
+			__syncthreads();
+
+			// Reduce pairs in shared memory.
+			int start = pow2roundup((blockDim.x + blockDim.x % 2) >> 1);
+			for (int s = start; s > warpSize; s >>= 1)
+			{
+				if ((threadIdx.x < s) && (threadIdx.x + s < half))
+					shared[threadIdx.x] += shared[threadIdx.x + s];
+
+				__syncthreads();
+			}
+
+			// Unroll last 32 iterations of loop (64 elements).
+			// There is no need for synchronizations, since all accesses
+			// are within single warp.
+			if (threadIdx.x < warpSize)
+			{
+				volatile double* vshared = shared;
+				if (threadIdx.x + 32 < half) vshared[threadIdx.x] += vshared[threadIdx.x + 32];
+				if (threadIdx.x + 16 < half) vshared[threadIdx.x] += vshared[threadIdx.x + 16];
+				if (threadIdx.x +  8 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  8];
+				if (threadIdx.x +  4 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  4];
+				if (threadIdx.x +  2 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  2];
+				if (threadIdx.x +  1 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  1];
+			}
+
+			// The first thread writes the result.
+			if (threadIdx.x == 0)
+				result[blockIdx.x] = shared[0];
+		}
+
+		__constant__ config_t configs[MAX_CONFIGS];
+		__device__ double* buffer = NULL;
+		__device__ size_t szbuffer = 0;
+	}
+}
+
+__device__ double ss_dot(const double* x, const double* y, const int length)
+{
+	using namespace gpu;
+	using namespace gpu::ss_dot_kernel;
+
+	{
+		size_t size = configs[0].grid.x + configs[0].grid.x % 2;
+		if (szbuffer != size)
+		{
+			if (szbuffer)
+				CUDA_ERR_CHECK(cudaFree(buffer));
+			CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * size));
+			szbuffer = size;
+		}
+
+		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
+			length, x, y, buffer));
+		CUDA_ERR_CHECK(cudaDeviceSynchronize());
+	}
+
+	for (int i = 1, szbuffer = configs[0].grid.x; szbuffer != 1; i++)
+	{
+		int x_length = szbuffer / 2 + szbuffer % 2;
+		int y_length = szbuffer / 2;
+
+		const double* x_dev = buffer;
+		const double* y_dev = buffer + x_length;
+
+		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<<<
+			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
+			x_length, x_dev, y_length, y_dev, buffer));
+		CUDA_ERR_CHECK(cudaDeviceSynchronize());
+		
+		szbuffer = configs[i].grid.x;
+	}
+
+    // record the number of floating point oporations
+    flops_blas1 += 2 * length;
+
+	double result = buffer[0];    
     return result;
 }
 
@@ -189,40 +274,47 @@ namespace gpu
 	{
 		// computes the 2-norm of x
 		// x is a vector of length N
-		__global__ void kernel(const double* x, double* result)
+		__global__ void kernel(int length, const double* x, double* result)
 		{
 			extern __shared__ double shared[];
+
+			int half = length / 2 + length % 2;
 
 			// Each block hanldes (2 * blockDim.x) elements of reduction.
 			int i = 2 * blockIdx.x * blockDim.x + threadIdx.x;
 
 			// Load product of first 2 pairs into shared memory:
 			// idx-th and (idx + blockDim.x)-th.
-			shared[threadIdx.x] = x[i] * x[i] + x[i + blockDim.x] * x[i + blockDim.x];
-	
+			shared[threadIdx.x] = 0;
+			if (i < length)
+				shared[threadIdx.x] += x[i] * x[i];
+			if (i + blockDim.x < length)
+				shared[threadIdx.x] += x[i + blockDim.x] * x[i + blockDim.x];
+
 			__syncthreads();
 
 			// Reduce pairs in shared memory.
-			for (int s = blockDim.x / 2; s > 32; s >>= 1)
+			int start = pow2roundup((blockDim.x + blockDim.x % 2) >> 1);
+			for (int s = start; s > warpSize; s >>= 1)
 			{
-				if (threadIdx.x < s)
+				if ((threadIdx.x < s) && (threadIdx.x + s < half))
 					shared[threadIdx.x] += shared[threadIdx.x + s];
-		
+
 				__syncthreads();
 			}
-	
-			// Unroll last 32 iterations of loop.
+
+			// Unroll last 32 iterations of loop (64 elements).
 			// There is no need for synchronizations, since all accesses
 			// are within single warp.
-			if (threadIdx.x < 32)
+			if (threadIdx.x < warpSize)
 			{
 				volatile double* vshared = shared;
-				vshared[threadIdx.x] += vshared[threadIdx.x + 32];
-				vshared[threadIdx.x] += vshared[threadIdx.x + 16];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  8];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  4];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  2];
-				vshared[threadIdx.x] += vshared[threadIdx.x +  1];
+				if (threadIdx.x + 32 < half) vshared[threadIdx.x] += vshared[threadIdx.x + 32];
+				if (threadIdx.x + 16 < half) vshared[threadIdx.x] += vshared[threadIdx.x + 16];
+				if (threadIdx.x +  8 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  8];
+				if (threadIdx.x +  4 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  4];
+				if (threadIdx.x +  2 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  2];
+				if (threadIdx.x +  1 < half) vshared[threadIdx.x] += vshared[threadIdx.x +  1];
 			}
 
 			// The first thread writes the result.
@@ -230,28 +322,53 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t configs[MAX_CONFIGS];
 		__device__ double* buffer = NULL;
+		__device__ size_t szbuffer = 0;
 	}
 }
 
-__device__ double ss_norm2(const double* x, const int N)
+__device__ double ss_norm2(const double* x, const int length)
 {
 	using namespace gpu;
 	using namespace gpu::ss_norm2_kernel;
-	
-	if (!buffer)
-		CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * config.grid.x));
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block, config.block.x * sizeof(double)>>>(x, buffer));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
-	double result = buffer[0];
-	for (int i = 1; i < config.grid.x; i++)
-		result += buffer[i];
+	{
+		size_t size = configs[0].grid.x + configs[0].grid.x % 2;
+		if (szbuffer != size)
+		{
+			if (szbuffer)
+				CUDA_ERR_CHECK(cudaFree(buffer));
+			CUDA_ERR_CHECK(cudaMalloc(&buffer, sizeof(double) * size));
+			szbuffer = size;
+		}
+
+		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
+			length, x, buffer));
+		CUDA_ERR_CHECK(cudaDeviceSynchronize());
+	}
+
+	for (int i = 1, szbuffer = configs[0].grid.x; szbuffer != 1; i++)
+	{
+		int x_length = szbuffer / 2 + szbuffer % 2;
+		int y_length = szbuffer / 2;
+
+		const double* x_dev = buffer;
+		const double* y_dev = buffer + x_length;
+
+		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<<<
+			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
+			x_length, x_dev, y_length, y_dev, buffer));
+		CUDA_ERR_CHECK(cudaDeviceSynchronize());
+		
+		szbuffer = configs[i].grid.x;
+	}
 	
     // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
-    
+    flops_blas1 += 2 * length;
+
+	double result = buffer[0];
     return sqrt(result);
 }
 
@@ -313,7 +430,7 @@ __device__ void ss_axpy(double* y, const double alpha, const double* x, const in
 	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, N));
 
 	// record the number of floating point oporations
-	flops_blas1 = flops_blas1 + 2 * N;
+	flops_blas1 += 2 * N;
 }
 
 namespace gpu
@@ -345,7 +462,7 @@ __device__ void ss_add_scaled_diff(double* y, const double* x, const double alph
 	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, x, alpha, l, r, N));
 
     // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 3 * N;
+    flops_blas1 += 3 * N;
 }
 
 namespace gpu
@@ -377,7 +494,7 @@ __device__ void ss_scaled_diff(double* y, const double alpha,
 	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, l, r, N));
 
     // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 2 * N;
+    flops_blas1 += 2 * N;
 }
 
 namespace gpu
@@ -407,7 +524,7 @@ __device__ void ss_scale(double* y, const double alpha, double* x, const int N)
 	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, N));
 
     // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + N;
+    flops_blas1 += N;
 }
 
 namespace gpu
@@ -439,7 +556,7 @@ __device__ void ss_lcomb(double* y, const double alpha, double* x, const double 
 	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, beta, z, N));
 
     // record the number of floating point oporations
-    flops_blas1 = flops_blas1 + 3 * N;
+    flops_blas1 += 3 * N;
 }
 
 namespace gpu

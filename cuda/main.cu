@@ -234,9 +234,9 @@ int main(int argc, char* argv[])
     	determine_optimal_grid_block_config(diffusion_interior_grid_points, nx - 2, ny - 2);
     	determine_optimal_grid_block_config(diffusion_east_west_boundary_points, 1, ny - 2);
 		determine_optimal_grid_block_config(diffusion_north_south_boundary_points, nx - 2, 1);
-		determine_optimal_grid_block_config(ss_dot, N / 2, 1);
-		determine_optimal_grid_block_config(ss_sum, N / 2, 1);
-		determine_optimal_grid_block_config(ss_norm2, N / 2, 1);
+		determine_optimal_grid_block_configs_reduction(ss_sum, N);
+		determine_optimal_grid_block_configs_reduction(ss_dot, N);
+		determine_optimal_grid_block_configs_reduction(ss_norm2, N);
 		determine_optimal_grid_block_config(ss_fill, N, 1);
 		determine_optimal_grid_block_config(ss_axpy, N, 1);
 		determine_optimal_grid_block_config(ss_add_scaled_diff, N, 1);

@@ -80,12 +80,48 @@ namespace gpu
 		return block_size_with_maximum_potential_occupancy(attrs, props);
 	}
 
+	struct block_size_to_dynamic_smem_size : public thrust::unary_function<size_t, size_t>
+	{
+		float operator()(size_t szblock) { return szblock * sizeof(double); }
+	};
+
+	// Use Thrust occupancy calculator to determine the best size of block
+	// for a kernel which uses dynamic shared memory
+	template<typename T, typename block_size_to_dynamic_smem_size>
+	inline size_t get_optimal_szblock(T kernel)
+	{
+		using namespace gpu;
+		using namespace thrust::system::cuda::detail;
+
+		struct function_attributes_t attrs;
+		{
+			cudaFuncAttributes funcAttrs;
+			CUDA_ERR_CHECK(cudaFuncGetAttributes(&funcAttrs, kernel));
+			attrs.constSizeBytes = funcAttrs.constSizeBytes;
+			attrs.localSizeBytes = funcAttrs.localSizeBytes;
+			attrs.maxThreadsPerBlock = funcAttrs.maxThreadsPerBlock;
+			attrs.numRegs = funcAttrs.numRegs;
+			attrs.sharedSizeBytes = funcAttrs.sharedSizeBytes;
+		}
+		struct device_properties_t props;
+		{
+			props.major = cpu::props.major;
+			memcpy(&props.maxGridSize, &cpu::props.maxGridSize, sizeof(int) * 3);
+			props.maxThreadsPerBlock = cpu::props.maxThreadsPerBlock;
+			props.maxThreadsPerMultiProcessor = cpu::props.maxThreadsPerMultiProcessor;
+			props.minor = cpu::props.minor;
+			props.multiProcessorCount = cpu::props.multiProcessorCount;
+			props.regsPerBlock = cpu::props.regsPerBlock;
+			props.sharedMemPerBlock = cpu::props.sharedMemPerBlock;
+			props.warpSize = cpu::props.warpSize;
+		}
+		return block_size_with_maximum_potential_occupancy(attrs, props, block_size_to_dynamic_smem_size());
+	}
+
 	template<typename T>
 	inline void get_optimal_grid_block_config(T kernel,
-		int nx, int ny, dim3* grid, dim3* blocks)
+		int nx, int ny, size_t szblock, dim3* grid, dim3* blocks)
 	{
-		size_t szblock = get_optimal_szblock(kernel);
-
 		grid->x = 1; grid->y = 1; grid->z = 1;
 		blocks->x = 1; blocks->y = 1; blocks->z = 1;
 
@@ -110,8 +146,37 @@ namespace gpu
 		{ \
 			using namespace gpu::kernel_name##_kernel; \
 			gpu::config_t c; \
-			gpu::get_optimal_grid_block_config(kernel, nx, ny, &c.grid, &c.block); \
+			size_t szblock = gpu::get_optimal_szblock(kernel); \
+			gpu::get_optimal_grid_block_config(kernel, nx, ny, szblock, &c.grid, &c.block); \
 			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(gpu::config_t))); \
+		} \
+	}
+
+	#define determine_optimal_grid_block_config_reduction(kernel_name, nx, c, i) \
+	{ \
+		{ \
+			using namespace gpu::kernel_name##_kernel; \
+			size_t szblock = gpu::get_optimal_szblock(kernel); \
+			gpu::get_optimal_grid_block_config(kernel, nx, 1, szblock, &c.grid, &c.block); \
+			CUDA_ERR_CHECK(cudaMemcpyToSymbol(configs, &c, sizeof(gpu::config_t), i * sizeof(gpu::config_t))); \
+		} \
+	}
+
+	#define MAX_CONFIGS 4
+
+	#define determine_optimal_grid_block_configs_reduction(kernel_name, n) \
+	{ \
+		int length = n; \
+		using namespace gpu; \
+		int iconfig = 0; \
+		config_t config; \
+		determine_optimal_grid_block_config_reduction(kernel_name, length / 2 + length % 2, config, iconfig); \
+		iconfig++; \
+		for (int szbuffer = config.grid.x ; szbuffer != 1; szbuffer = config.grid.x) \
+		{ \
+			length = szbuffer / 2 + szbuffer % 2; \
+			determine_optimal_grid_block_config_reduction(kernel_name, length / 2 + length % 2, config, iconfig); \
+			iconfig++; \
 		} \
 	}
 
