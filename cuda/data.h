@@ -24,8 +24,8 @@ namespace cpu
 namespace gpu
 {
 	// fields that hold the solution
-	extern __device__ double *x_old; // 2d
-	extern __device__ double *bndN, *bndE, *bndS, *bndW; // 1d
+	extern __device__ double * __restrict__ x_old; // 2d
+	extern __device__ double * __restrict__ bndN, * __restrict__ bndE, * __restrict__ bndS, * __restrict__ bndW; // 1d
 
 	extern __constant__ struct discretization_t options;
 }
