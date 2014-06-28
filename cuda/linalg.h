@@ -71,6 +71,7 @@ namespace gpu
 	{
 		// computes the sum of x and y
 		// x and y are vectors of lenghts x_length and y_length
+		template<short V, typename T>
 		__global__ void kernel(
 			const int x_length, const double* const __restrict__ x,
 			const int y_length, const double* const __restrict__ y, double* __restrict__ result)
@@ -150,7 +151,7 @@ inline __device__ double ss_sum(
 			szbuffer = size;
 		}
 
-		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
 			length, x, length, y, buffer));
 		CUDA_ERR_CHECK(cudaDeviceSynchronize());
@@ -164,7 +165,7 @@ inline __device__ double ss_sum(
 		const double* x_dev = buffer;
 		const double* y_dev = buffer + x_length;
 
-		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
 			x_length, x_dev, y_length, y_dev, buffer));
 		CUDA_ERR_CHECK(cudaDeviceSynchronize());
@@ -192,6 +193,7 @@ namespace gpu
 	{
 		// computes the inner product of x and y
 		// x and y are vectors of length N
+		template<short V, typename T>
 		__global__ void kernel(const int length,const double* const __restrict__ x,
 			const double* const __restrict__ y, double* __restrict__ result)
 		{
@@ -266,7 +268,7 @@ inline __device__ double ss_dot(
 			szbuffer = size;
 		}
 
-		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
 			length, x, y, buffer));
 		CUDA_ERR_CHECK(cudaDeviceSynchronize());
@@ -280,7 +282,7 @@ inline __device__ double ss_dot(
 		const double* x_dev = buffer;
 		const double* y_dev = buffer + x_length;
 
-		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<<<
+		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<1, gpu::double1><<<
 			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
 			x_length, x_dev, y_length, y_dev, buffer));
 		CUDA_ERR_CHECK(cudaDeviceSynchronize());
@@ -301,6 +303,7 @@ namespace gpu
 	{
 		// computes the 2-norm of x
 		// x is a vector of length N
+		template<short V, typename T>
 		__global__ void kernel(const int length,
 			const double* const __restrict__ x, double* const __restrict__ result)
 		{
@@ -374,7 +377,7 @@ inline __device__ double ss_norm2(const double* const __restrict__ x, const int 
 			szbuffer = size;
 		}
 
-		CUDA_LAUNCH_ERR_CHECK(kernel<<<
+		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
 			length, x, buffer));
 		CUDA_ERR_CHECK(cudaDeviceSynchronize());
@@ -388,7 +391,7 @@ inline __device__ double ss_norm2(const double* const __restrict__ x, const int 
 		const double* x_dev = buffer;
 		const double* y_dev = buffer + x_length;
 
-		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<<<
+		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<1, gpu::double1><<<
 			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
 			x_length, x_dev, y_length, y_dev, buffer));
 		CUDA_ERR_CHECK(cudaDeviceSynchronize());
@@ -410,12 +413,16 @@ namespace gpu
 		// sets entries in a vector to value
 		// x is a vector of length N
 		// value is th
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ x, const double value, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
+			if (V * i >= N) return;
 
-			x[i] = value;
+			T vv;
+			for (int v = 0; v < V; v++)			
+				vv.v[v] = value;
+			((T*)x)[i] = vv;
 		}
 
 		__constant__ config_t config_c;
@@ -431,7 +438,7 @@ inline __device__ void ss_fill(double* __restrict__ x, const double value, const
 	using namespace gpu;
 	using namespace gpu::ss_fill_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(x, value, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(x, value, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 }
 
@@ -446,13 +453,19 @@ namespace gpu
 		// computes y := alpha*x + y
 		// x and y are vectors of length N
 		// alpha is a scalar
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ y, const double alpha,
 			const double* const __restrict__ x, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
-		
-			y[i] += alpha * x[i];
+			if (V * i >= N) return;
+
+			T yy;
+			T xx = T::ld(x, i);
+			T zz = T::ld(y, i);
+			for (int v = 0; v < V; v++)			
+				yy.v[v] = alpha * xx.v[v] + zz.v[v];
+			T::stcs(y, i, yy);
 		}
 
 		__constant__ config_t config_c;
@@ -469,7 +482,7 @@ inline __device__ void ss_axpy(
 	using namespace gpu;
 	using namespace gpu::ss_axpy_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
 	// record the number of floating point oporations
@@ -483,14 +496,21 @@ namespace gpu
 		// computes y = x + alpha*(l-r)
 		// y, x, l and r are vectors of length N
 		// alpha is a scalar
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ y,
 			const double* const __restrict__ x, const double alpha,
 			const double* const __restrict__ l, const double* const __restrict__ r, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
+			if (V * i >= N) return;
 
-			y[i] = x[i] + alpha * (l[i] - r[i]);
+			T yy;
+			T xx = T::ld(x, i);
+			T ll = T::ld(l, i);
+			T rr = T::ld(r, i);
+			for (int v = 0; v < V; v++)			
+				yy.v[v] = xx.v[v] + alpha * (ll.v[v] - rr.v[v]);
+			T::stcs(y, i, yy);
 		}
 
 		__constant__ config_t config_c;
@@ -508,7 +528,7 @@ inline __device__ void ss_add_scaled_diff(double* __restrict__ y,
 	using namespace gpu;
 	using namespace ss_add_scaled_diff_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, x, alpha, l, r, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, x, alpha, l, r, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
@@ -522,14 +542,20 @@ namespace gpu
 		// computes y = alpha*(l-r)
 		// y, l and r are vectors of length N
 		// alpha is a scalar
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ y,
 			const double alpha,	const double* const __restrict__ l,
 			const double* const __restrict__ r, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
+			if (V * i >= N) return;
 
-			y[i] = alpha * (l[i] - r[i]);
+			T yy;
+			T ll = T::ld(l, i);
+			T rr = T::ld(r, i);
+			for (int v = 0; v < V; v++)			
+				yy.v[v] = alpha * (ll.v[v] - rr.v[v]);
+			T::stcs(y, i, yy);
 		}
 
 		__constant__ config_t config_c;
@@ -546,7 +572,7 @@ inline __device__ void ss_scaled_diff(double* __restrict__ y, const double alpha
 	using namespace gpu;
 	using namespace gpu::ss_scaled_diff_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, l, r, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, l, r, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
@@ -560,13 +586,18 @@ namespace gpu
 		// computes y := alpha*x
 		// alpha is scalar
 		// y and x are vectors of length N
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ y, const double alpha,
 			const double* const __restrict__ x, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
+			if (V * i >= N) return;
 
-			y[i] = alpha * x[i];
+			T yy;
+			T xx = T::ld(x, i);
+			for (int v = 0; v < V; v++)			
+				yy.v[v] = alpha * xx.v[v];
+			T::stcs(y, i, yy);
 		}
 
 		__constant__ config_t config_c;
@@ -583,7 +614,7 @@ inline __device__ void ss_scale(double* __restrict__ y, const double alpha,
 	using namespace gpu;
 	using namespace gpu::ss_scale_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
@@ -597,14 +628,20 @@ namespace gpu
 		// computes linear combination of two vectors y := alpha*x + beta*z
 		// alpha and beta are scalar
 		// y, x and z are vectors of length N
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ y, const double alpha,
 			const double* const __restrict__ x, const double beta,
 			const double* const __restrict__ z, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
-			
-			y[i] = alpha * x[i] + beta * z[i];
+			if (V * i >= N) return;
+
+			T yy;
+			T xx = T::ld(x, i);
+			T zz = T::ld(z, i);
+			for (int v = 0; v < V; v++)			
+				yy.v[v] = alpha * xx.v[v] + beta * zz.v[v];
+			T::stcs(y, i, yy);
 		}
 
 		__constant__ config_t config_c;
@@ -622,7 +659,7 @@ inline __device__ void ss_lcomb(double* __restrict__ y, const double alpha,
 	using namespace gpu;
 	using namespace gpu::ss_lcomb_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, alpha, x, beta, z, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, beta, z, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
@@ -635,12 +672,14 @@ namespace gpu
 	{
 		// copy one vector into another y := x
 		// x and y are vectors of length N
+		template<short V, typename T>
 		__global__ void kernel(double* __restrict__ y, const double* const __restrict__ x, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
-			if (i >= N) return;
+			if (V * i >= N) return;
 
-			y[i] = x[i];
+			T xx = T::ld(x, i);
+			((T*)y)[i] = xx;
 		}
 
 		__constant__ config_t config_c;
@@ -655,7 +694,7 @@ inline __device__ void ss_copy(double* y, const double* const __restrict__ x, co
 	using namespace gpu;
 	using namespace gpu::ss_copy_kernel;
 
-	CUDA_LAUNCH_ERR_CHECK(kernel<<<config.grid, config.block>>>(y, x, N));
+	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, x, N));
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 }
 

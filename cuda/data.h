@@ -47,6 +47,104 @@ namespace gpu
 			return ::dim3(x, y, z);
 		}
 	};
+
+#if (defined(_MSC_VER) && defined(_WIN64)) || defined(__LP64__)
+#define __LDG_PTR   "l"
+#else
+#define __LDG_PTR   "r"
+#endif
+
+	static __device__ __inline__ double2 __ld(const double2 *ptr)
+	{
+		double2 ret;
+		asm volatile ("ld.global.v2.f64 {%0,%1}, [%2];"  : "=d"(ret.x), "=d"(ret.y) : __LDG_PTR (ptr));
+		return ret;
+	}
+#undef __LDG_PTR
+
+	static __device__ __inline__ void __stcs(const double2 *ptr, const double2& val)
+	{
+		asm volatile ("st.global.cs.v2.f64 [%0], {%1,%2};"  : : "l"(ptr), "d"(val.x), "d"(val.y));
+	}
+	
+	union double1
+	{
+		double e;
+		double v[1];
+
+		inline static __device__ double1 ld(const double* src, const int i)
+		{
+			double1 dst;
+			dst.e = src[i];
+			return dst;
+		}
+
+		inline static __device__ double1 ldg(const double* src, const int i)
+		{
+			double1 dst;
+			dst.e = __ldg(&src[i]);
+			return dst;
+		}
+		
+		inline static __device__ void stcs(double* dst, const int i, const double1& src)
+		{
+			dst[i] = src.e;
+		}
+	};
+	
+	union double2
+	{
+		::double2 e;
+		double v[2];
+
+		inline static __device__ double2 ld(const double* src, const int i)
+		{
+			double2 dst;
+			dst.e = __ld(&((const double2*)src)[i].e);
+			return dst;
+		}
+
+		inline static __device__ double2 ldg(const double* src, const int i)
+		{
+			double2 dst;
+			dst.e = __ldg(&((const double2*)src)[i].e);
+			return dst;
+		}
+		
+		inline static __device__ void stcs(double* dst, const int i, const double2& src)
+		{
+			__stcs(&((const double2*)dst)[i].e, src.e);
+		}
+	};
+	
+	union double4
+	{
+		::double4 e;
+		::double2 e2[2];
+		double v[4];
+
+		inline static __device__ double4 ld(const double* src, const int i)
+		{
+			double4 dst;
+			dst.e2[0] = __ld(&((const double4*)src)[i].e2[0]);
+			dst.e2[1] = __ld(&((const double4*)src)[i].e2[1]);
+			return dst;
+		}
+
+		inline static __device__ double4 ldg(const double* src, const int i)
+		{
+			double4 dst;
+			dst.e2[0] = __ldg(&((const double4*)src)[i].e2[0]);
+			dst.e2[1] = __ldg(&((const double4*)src)[i].e2[1]);
+			return dst;
+		}
+		
+		inline static __device__ void stcs(double* dst, const int i, const double4& src)
+		{
+			__stcs(&((const double4*)dst)[i].e2[0], src.e2[0]);
+			__stcs(&((const double4*)dst)[i].e2[1], src.e2[1]);
+		}
+	};
 	
 	// Use Thrust occupancy calculator to determine the best size of block.
 	template<typename T>
@@ -141,41 +239,41 @@ namespace gpu
 		}
 	}
 
-	#define determine_optimal_grid_block_config(kernel_name, nx, ny) \
+	#define determine_optimal_grid_block_config(kernel_name, vector, nx, ny) \
 	{ \
 		{ \
 			using namespace gpu::kernel_name##_kernel; \
 			gpu::config_t c; \
-			size_t szblock = gpu::get_optimal_szblock(kernel); \
-			gpu::get_optimal_grid_block_config(kernel, nx, ny, szblock, &c.grid, &c.block); \
+			size_t szblock = gpu::get_optimal_szblock(kernel<vector, gpu::double##vector>); \
+			gpu::get_optimal_grid_block_config(kernel<vector, gpu::double##vector>, ((nx) / (vector)), ny, szblock, &c.grid, &c.block); \
 			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config_c, &c, sizeof(gpu::config_t))); \
 		} \
 	}
 
-	#define determine_optimal_grid_block_config_reduction(kernel_name, nx, c, i) \
+	#define determine_optimal_grid_block_config_reduction(kernel_name, vector, nx, c, i) \
 	{ \
 		{ \
 			using namespace gpu::kernel_name##_kernel; \
-			size_t szblock = gpu::get_optimal_szblock(kernel); \
-			gpu::get_optimal_grid_block_config(kernel, nx, 1, szblock, &c.grid, &c.block); \
+			size_t szblock = gpu::get_optimal_szblock(kernel<vector, gpu::double##vector>); \
+			gpu::get_optimal_grid_block_config(kernel<vector, gpu::double##vector>, ((nx) / (vector)), 1, szblock, &c.grid, &c.block); \
 			CUDA_ERR_CHECK(cudaMemcpyToSymbol(configs_c, &c, sizeof(gpu::config_t), i * sizeof(gpu::config_t))); \
 		} \
 	}
 
 	#define MAX_CONFIGS 4
 
-	#define determine_optimal_grid_block_configs_reduction(kernel_name, n) \
+	#define determine_optimal_grid_block_configs_reduction(kernel_name, vector, n) \
 	{ \
 		int length = n; \
 		using namespace gpu; \
 		int iconfig = 0; \
 		config_t config; \
-		determine_optimal_grid_block_config_reduction(kernel_name, length / 2 + length % 2, config, iconfig); \
+		determine_optimal_grid_block_config_reduction(kernel_name, vector, length / 2 + length % 2, config, iconfig); \
 		iconfig++; \
 		for (int szbuffer = config.grid.x ; szbuffer != 1; szbuffer = config.grid.x) \
 		{ \
 			length = szbuffer / 2 + szbuffer % 2; \
-			determine_optimal_grid_block_config_reduction(kernel_name, length / 2 + length % 2, config, iconfig); \
+			determine_optimal_grid_block_config_reduction(kernel_name, vector, length / 2 + length % 2, config, iconfig); \
 			iconfig++; \
 		} \
 	}
