@@ -71,7 +71,9 @@ namespace gpu
 	{
 		// computes the sum of x and y
 		// x and y are vectors of lenghts x_length and y_length
-		__global__ void kernel(int x_length, const double* x, int y_length, const double* y, double* result)
+		__global__ void kernel(
+			const int x_length, const double* const __restrict__ x,
+			const int y_length, const double* const __restrict__ y, double* __restrict__ result)
 		{
 			extern __shared__ double shared[];
 
@@ -131,7 +133,8 @@ namespace gpu
 
 // computes the sum of x and y elements
 // x and y are vectors of length N
-inline __device__ double ss_sum(const double* x, const double* y, const int length)
+inline __device__ double ss_sum(
+	const double* const __restrict__ x, const double* const __restrict__ y, const int length)
 {
 	using namespace gpu;
 	using namespace gpu::ss_sum_kernel;
@@ -177,7 +180,7 @@ inline __device__ double ss_sum(const double* x, const double* y, const int leng
 
 // computes the sum of x elements
 // x is a vector of length N
-inline __device__ double ss_sum(const double* x, const int N)
+inline __device__ double ss_sum(const double* const __restrict__ x, const int N)
 {
 	return ss_sum(x, x + N / 2 + N % 2, N / 2 + N % 2);
 }
@@ -188,7 +191,8 @@ namespace gpu
 	{
 		// computes the inner product of x and y
 		// x and y are vectors of length N
-		__global__ void kernel(int length, const double* x, const double* y, double* result)
+		__global__ void kernel(const int length,const double* const __restrict__ x,
+			const double* const __restrict__ y, double* __restrict__ result)
 		{
 			extern __shared__ double shared[];
 
@@ -244,7 +248,8 @@ namespace gpu
 
 // computes the inner product of x and y
 // x and y are vectors of length N
-inline __device__ double ss_dot(const double* x, const double* y, const int length)
+inline __device__ double ss_dot(
+	const double* const __restrict__ x, const double* const __restrict__ y, const int length)
 {
 	using namespace gpu;
 	using namespace gpu::ss_dot_kernel;
@@ -294,7 +299,8 @@ namespace gpu
 	{
 		// computes the 2-norm of x
 		// x is a vector of length N
-		__global__ void kernel(int length, const double* x, double* result)
+		__global__ void kernel(const int length,
+			const double* const __restrict__ x, double* const __restrict__ result)
 		{
 			extern __shared__ double shared[];
 
@@ -350,7 +356,7 @@ namespace gpu
 
 // computes the 2-norm of x
 // x is a vector of length N
-inline __device__ double ss_norm2(const double* x, const int length)
+inline __device__ double ss_norm2(const double* const __restrict__ x, const int length)
 {
 	using namespace gpu;
 	using namespace gpu::ss_norm2_kernel;
@@ -401,7 +407,7 @@ namespace gpu
 		// sets entries in a vector to value
 		// x is a vector of length N
 		// value is th
-		__global__ void kernel(double* x, const double value, const int N)
+		__global__ void kernel(double* __restrict__ x, const double value, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -416,7 +422,7 @@ namespace gpu
 // sets entries in a vector to value
 // x is a vector of length N
 // value is th
-inline __device__ void ss_fill(double* x, const double value, const int N)
+inline __device__ void ss_fill(double* __restrict__ x, const double value, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_fill_kernel;
@@ -436,7 +442,8 @@ namespace gpu
 		// computes y := alpha*x + y
 		// x and y are vectors of length N
 		// alpha is a scalar
-		__global__ void kernel(double* y, const double alpha, const double* x, const int N)
+		__global__ void kernel(double* __restrict__ y, const double alpha,
+			const double* const __restrict__ x, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -451,7 +458,8 @@ namespace gpu
 // computes y := alpha*x + y
 // x and y are vectors of length N
 // alpha is a scalar
-inline __device__ void ss_axpy(double* y, const double alpha, const double* x, const int N)
+inline __device__ void ss_axpy(
+	double* __restrict__ y, const double alpha, const double* const __restrict__ x, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_axpy_kernel;
@@ -470,8 +478,9 @@ namespace gpu
 		// computes y = x + alpha*(l-r)
 		// y, x, l and r are vectors of length N
 		// alpha is a scalar
-		__global__ void kernel(double* y, const double* x, const double alpha,
-			const double* l, const double* r, const int N)
+		__global__ void kernel(double* __restrict__ y,
+			const double* const __restrict__ x, const double alpha,
+			const double* const __restrict__ l, const double* const __restrict__ r, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -486,8 +495,9 @@ namespace gpu
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-inline __device__ void ss_add_scaled_diff(double* y, const double* x, const double alpha,
-	const double* l, const double* r, const int N)
+inline __device__ void ss_add_scaled_diff(double* __restrict__ y,
+	const double* const __restrict__ x, const double alpha,
+	const double* const __restrict__ l, const double* const __restrict__ r, const int N)
 {
 	using namespace gpu;
 	using namespace ss_add_scaled_diff_kernel;
@@ -506,8 +516,9 @@ namespace gpu
 		// computes y = alpha*(l-r)
 		// y, l and r are vectors of length N
 		// alpha is a scalar
-		__global__ void kernel(double* y, const double alpha,
-			const double* l, const double* r, const int N)
+		__global__ void kernel(double* __restrict__ y,
+			const double alpha,	const double* const __restrict__ l,
+			const double* const __restrict__ r, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -522,8 +533,8 @@ namespace gpu
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-inline __device__ void ss_scaled_diff(double* y, const double alpha,
-    const double* l, const double* r, const int N)
+inline __device__ void ss_scaled_diff(double* __restrict__ y, const double alpha,
+    const double* const __restrict__ l, const double* const __restrict__ r, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_scaled_diff_kernel;
@@ -542,7 +553,8 @@ namespace gpu
 		// computes y := alpha*x
 		// alpha is scalar
 		// y and x are vectors of length N
-		__global__ void kernel(double* y, const double alpha, double* x, const int N)
+		__global__ void kernel(double* __restrict__ y, const double alpha,
+			const double* const __restrict__ x, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -557,7 +569,8 @@ namespace gpu
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors of length N
-inline __device__ void ss_scale(double* y, const double alpha, double* x, const int N)
+inline __device__ void ss_scale(double* __restrict__ y, const double alpha,
+	const double* const __restrict__ x, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_scale_kernel;
@@ -576,8 +589,9 @@ namespace gpu
 		// computes linear combination of two vectors y := alpha*x + beta*z
 		// alpha and beta are scalar
 		// y, x and z are vectors of length N
-		__global__ void kernel(double* y, const double alpha, double* x, const double beta,
-			const double* z, const int N)
+		__global__ void kernel(double* __restrict__ y, const double alpha,
+			const double* const __restrict__ x, const double beta,
+			const double* const __restrict__ z, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -592,8 +606,9 @@ namespace gpu
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors of length N
-inline __device__ void ss_lcomb(double* y, const double alpha, double* x, const double beta,
-    const double* z, const int N)
+inline __device__ void ss_lcomb(double* __restrict__ y, const double alpha,
+	const double* const __restrict__ x, const double beta,
+    const double* const __restrict__ z, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_lcomb_kernel;
@@ -611,7 +626,7 @@ namespace gpu
 	{
 		// copy one vector into another y := x
 		// x and y are vectors of length N
-		__global__ void kernel(double* y, const double* x, const int N)
+		__global__ void kernel(double* __restrict__ y, const double* const __restrict__ x, const int N)
 		{
 			int i = blockDim.x * blockIdx.x + threadIdx.x;
 			if (i >= N) return;
@@ -625,7 +640,7 @@ namespace gpu
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-inline __device__ void ss_copy(double* y, const double* x, const int N)
+inline __device__ void ss_copy(double* y, const double* const __restrict__ x, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_copy_kernel;
@@ -643,7 +658,8 @@ namespace gpu
 	// x(N)
 	// ON ENTRY contains the initial guess for the solution
 	// ON EXIT  contains the solution
-	inline __device__ bool ss_cg(int N, double* x, const double* b, const int maxiters, const double tol)
+	inline __device__ bool ss_cg(int N, double* __restrict__ x, const double* const __restrict__ b,
+		const int maxiters, const double tol)
 	{
 		if (!cg_initialized)
 		{

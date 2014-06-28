@@ -21,7 +21,7 @@ namespace gpu
 {
 	namespace diffusion_interior_grid_points_kernel
 	{
-		__global__ void kernel(const double* up, double* sp)
+		__global__ void kernel(const double* const __restrict__ up, double* __restrict__ sp)
 		{
 			using namespace gpu;
 
@@ -50,7 +50,7 @@ namespace gpu
 
 	namespace diffusion_east_west_boundary_points_kernel
 	{
-		__global__ void kernel(const double* up, double* sp)
+		__global__ void kernel(const double* const __restrict__ up, double* __restrict__ sp)
 		{
 			using namespace gpu;
 
@@ -86,7 +86,7 @@ namespace gpu
 
 	namespace diffusion_north_south_boundary_points_kernel
 	{
-		__global__ void kernel(const double* up, double* sp)
+		__global__ void kernel(const double* const __restrict__ up, double* __restrict__ sp)
 		{
 			using namespace gpu;
 
@@ -122,7 +122,7 @@ namespace gpu
 
 	namespace diffusion_corner_points_kernel
 	{
-		inline __device__ void kernel(const double* up, double* sp)
+		inline __device__ void kernel(const double* const __restrict__ up, double* __restrict__ sp)
 		{
 			using namespace gpu;
 
@@ -169,7 +169,7 @@ namespace gpu
 		}
 	}
 
-	inline __device__ void diffusion(const double* up, double* sp)
+	inline __device__ void diffusion(const double* const __restrict__ up, double* __restrict__ sp)
 	{
 		using namespace gpu;
 
