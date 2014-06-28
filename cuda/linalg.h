@@ -17,8 +17,8 @@
 namespace
 {
 	__device__ int cg_initialized = 0;
-	__device__ double *r = NULL, *Ap = NULL, *p = NULL;
-	__device__ double *Fx = NULL, *Fxold = NULL, *v = NULL, *xold = NULL; // 1d
+	__shared__ double *r, *Ap, *p;
+	__shared__ double *Fx, *Fxold, *v, *xold; // 1d
 
 	// initialize temporary storage fields used by the cg solver
 	// I do this here so that the fields are persistent between calls
@@ -125,7 +125,8 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t configs[MAX_CONFIGS];
+		__constant__ config_t configs_c[MAX_CONFIGS];
+		__shared__ config_t configs[MAX_CONFIGS];
 		__device__ double* buffer = NULL;
 		__device__ size_t szbuffer = 0;
 	}
@@ -240,7 +241,8 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t configs[MAX_CONFIGS];
+		__constant__ config_t configs_c[MAX_CONFIGS];
+		__shared__ config_t configs[MAX_CONFIGS];
 		__device__ double* buffer = NULL;
 		__device__ size_t szbuffer = 0;
 	}
@@ -348,7 +350,8 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t configs[MAX_CONFIGS];
+		__constant__ config_t configs_c[MAX_CONFIGS];
+		__shared__ config_t configs[MAX_CONFIGS];
 		__device__ double* buffer = NULL;
 		__device__ size_t szbuffer = 0;
 	}
@@ -415,7 +418,8 @@ namespace gpu
 			x[i] = value;
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 
@@ -451,7 +455,8 @@ namespace gpu
 			y[i] += alpha * x[i];
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 
@@ -488,7 +493,8 @@ namespace gpu
 			y[i] = x[i] + alpha * (l[i] - r[i]);
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 
@@ -526,7 +532,8 @@ namespace gpu
 			y[i] = alpha * (l[i] - r[i]);
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 
@@ -562,7 +569,8 @@ namespace gpu
 			y[i] = alpha * x[i];
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 
@@ -599,7 +607,8 @@ namespace gpu
 			y[i] = alpha * x[i] + beta * z[i];
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 
@@ -634,7 +643,8 @@ namespace gpu
 			y[i] = x[i];
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 }
 

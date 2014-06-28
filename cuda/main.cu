@@ -115,8 +115,25 @@ namespace gpu
 	    CUDA_ERR_CHECK(cudaMalloc(&deltax_u, sizeof(double) * N + (1 << 7)));
 	    deltax = roundPow2(deltax_u, 7);
 	    
+	    // setting up shmem-cached flops counters
 	    flops_diff = 0, flops_blas1 = 0;
 	    iters_cg = 0; iters_newton = 0;
+
+		// setting up shmem-cached kernel compute grid configs
+		memcpy(ss_sum_kernel::configs, ss_sum_kernel::configs_c, sizeof(config_t) * MAX_CONFIGS);
+		memcpy(ss_dot_kernel::configs, ss_dot_kernel::configs_c, sizeof(config_t) * MAX_CONFIGS);
+		memcpy(ss_norm2_kernel::configs, ss_norm2_kernel::configs_c, sizeof(config_t) * MAX_CONFIGS);
+		ss_fill_kernel::config = ss_fill_kernel::config_c;
+		ss_axpy_kernel::config = ss_axpy_kernel::config_c;
+		ss_add_scaled_diff_kernel::config = ss_add_scaled_diff_kernel::config_c;
+		ss_add_scaled_diff_kernel::config = ss_add_scaled_diff_kernel::config_c;
+		ss_scaled_diff_kernel::config = ss_scaled_diff_kernel::config_c;
+		ss_scale_kernel::config = ss_scale_kernel::config_c;
+		ss_lcomb_kernel::config = ss_lcomb_kernel::config_c;
+		ss_copy_kernel::config = ss_copy_kernel::config_c;
+		diffusion_interior_grid_points_kernel::config = diffusion_interior_grid_points_kernel::config_c;
+		diffusion_east_west_boundary_points_kernel::config = diffusion_east_west_boundary_points_kernel::config_c;
+		diffusion_north_south_boundary_points_kernel::config = diffusion_north_south_boundary_points_kernel::config_c;
 
 		// set dirichlet boundary conditions to 0 all around
 		ss_fill(x_old,  0, N);

@@ -148,7 +148,7 @@ namespace gpu
 			gpu::config_t c; \
 			size_t szblock = gpu::get_optimal_szblock(kernel); \
 			gpu::get_optimal_grid_block_config(kernel, nx, ny, szblock, &c.grid, &c.block); \
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config, &c, sizeof(gpu::config_t))); \
+			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config_c, &c, sizeof(gpu::config_t))); \
 		} \
 	}
 
@@ -158,7 +158,7 @@ namespace gpu
 			using namespace gpu::kernel_name##_kernel; \
 			size_t szblock = gpu::get_optimal_szblock(kernel); \
 			gpu::get_optimal_grid_block_config(kernel, nx, 1, szblock, &c.grid, &c.block); \
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(configs, &c, sizeof(gpu::config_t), i * sizeof(gpu::config_t))); \
+			CUDA_ERR_CHECK(cudaMemcpyToSymbol(configs_c, &c, sizeof(gpu::config_t), i * sizeof(gpu::config_t))); \
 		} \
 	}
 

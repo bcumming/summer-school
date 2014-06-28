@@ -45,7 +45,8 @@ namespace gpu
 						            + dxs * U(j,i) * (1.0 - U(j,i));
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 
 	namespace diffusion_east_west_boundary_points_kernel
@@ -81,7 +82,8 @@ namespace gpu
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 
 	namespace diffusion_north_south_boundary_points_kernel
@@ -117,7 +119,8 @@ namespace gpu
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__constant__ config_t config;
+		__constant__ config_t config_c;
+		__shared__ config_t config;
 	}
 
 	namespace diffusion_corner_points_kernel
