@@ -86,9 +86,6 @@ static void readcmdline(struct discretization_t* options, int argc, char* argv[]
 
 namespace gpu
 {
-	__device__ double residual;
-	__device__ int cg_converged;
-
 	__global__ void main(double* x_new)
 	{
 		using namespace gpu;
@@ -98,16 +95,25 @@ namespace gpu
 		int N  = options.N;
 		int nt = options.nt;
 
-		CUDA_ERR_CHECK(cudaMalloc(&x_old,  sizeof(double) * nx * ny));
-		CUDA_ERR_CHECK(cudaMalloc(&bndN,   sizeof(double) * nx));
-		CUDA_ERR_CHECK(cudaMalloc(&bndS,   sizeof(double) * nx));
-		CUDA_ERR_CHECK(cudaMalloc(&bndE,   sizeof(double) * ny));
-		CUDA_ERR_CHECK(cudaMalloc(&bndW,   sizeof(double) * ny));
+		// Device malloc has small alignment, so we align manually here.
+		double *x_old_u, *bndN_u, *bndS_u, *bndE_u, *bndW_u;
+		CUDA_ERR_CHECK(cudaMalloc(&x_old_u,  sizeof(double) * nx * ny + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&bndN_u,   sizeof(double) * nx + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&bndS_u,   sizeof(double) * nx + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&bndE_u,   sizeof(double) * ny + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&bndW_u,   sizeof(double) * ny + (1 << 7)));
+		x_old = roundPow2(x_old_u, 7);
+		bndN = roundPow2(bndN_u, 7);
+		bndS = roundPow2(bndS_u, 7);
+		bndE = roundPow2(bndE_u, 7);
+		bndW = roundPow2(bndW_u, 7);
 
-	    double* b;
-	    CUDA_ERR_CHECK(cudaMalloc(&b,      sizeof(double) * N));
-	    double* deltax;
-	    CUDA_ERR_CHECK(cudaMalloc(&deltax, sizeof(double) * N));
+	    double *b_u, *b;
+	    CUDA_ERR_CHECK(cudaMalloc(&b_u,      sizeof(double) * N + (1 << 7)));
+	    b = roundPow2(b_u, 7);
+	    double *deltax_u, *deltax;
+	    CUDA_ERR_CHECK(cudaMalloc(&deltax_u, sizeof(double) * N + (1 << 7)));
+	    deltax = roundPow2(deltax_u, 7);
 
 		// set dirichlet boundary conditions to 0 all around
 		ss_fill(x_old,  0, N);
@@ -142,8 +148,7 @@ namespace gpu
 		        }
 
 		        // solve linear system to get -deltax
-		        cg_converged = 0;
-		        ss_cg(deltax, b, 200, tolerance, &cg_converged);
+		        bool cg_converged = ss_cg(N, deltax, b, 200, tolerance);
 
 		        // check that the CG solver converged
 		        if (!cg_converged) break;
@@ -170,13 +175,13 @@ namespace gpu
 		    }
 		}
 
-		free(x_old);
-		free(bndN);
-		free(bndS);
-		free(bndE);
-		free(bndW);
-		free(b);
-		free(deltax);
+		free(x_old_u);
+		free(bndN_u);
+		free(bndS_u);
+		free(bndE_u);
+		free(bndW_u);
+		free(b_u);
+		free(deltax_u);
 	}
 }
 

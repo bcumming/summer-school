@@ -191,6 +191,20 @@ namespace gpu
 	}
 
 	typedef struct __attribute__((packed)) { dim3 grid, block; } config_t;
+
+	// round up to the power of 2
+	template<typename T>
+	inline __device__ T roundPow2(T ptr, int pow2)
+	{
+		size_t number = (size_t)ptr;
+		pow2--;
+		pow2 = 0x01 << pow2;
+		pow2--;
+		number--;
+		number = number | pow2;
+		number++;
+		return (T)number;
+	}
 }
 
 #endif // DATA_H
