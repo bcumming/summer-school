@@ -114,6 +114,9 @@ namespace gpu
 	    double *deltax_u, *deltax;
 	    CUDA_ERR_CHECK(cudaMalloc(&deltax_u, sizeof(double) * N + (1 << 7)));
 	    deltax = roundPow2(deltax_u, 7);
+	    
+	    flops_diff = 0, flops_blas1 = 0;
+	    iters_cg = 0; iters_newton = 0;
 
 		// set dirichlet boundary conditions to 0 all around
 		ss_fill(x_old,  0, N);
@@ -174,6 +177,9 @@ namespace gpu
 		        break;
 		    }
 		}
+
+		flops_diff_d += flops_diff; flops_blas1_d += flops_blas1;
+		iters_cg_d += iters_cg; iters_newton_d += iters_newton;
 
 		free(x_old_u);
 		free(bndN_u);
@@ -264,7 +270,7 @@ int main(int argc, char* argv[])
 
     // get times
     timespent += omp_get_wtime();
-    unsigned long long flops_total = gpu::get_value(gpu::flops_diff) + gpu::get_value(gpu::flops_blas1);
+    unsigned long long flops_total = gpu::get_value(gpu::flops_diff_d) + gpu::get_value(gpu::flops_blas1_d);
 
 	using namespace cpu;
 
@@ -297,8 +303,8 @@ int main(int argc, char* argv[])
     // print table sumarizing results
     printf("--------------------------------------------------------------------------------\n");
     printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
-    printf("%u conjugate gradient iterations\n", gpu::get_value(gpu::iters_cg));
-    printf("%u newton iterations\n", gpu::get_value(gpu::iters_newton));
+    printf("%u conjugate gradient iterations\n", gpu::get_value(gpu::iters_cg_d));
+    printf("%u newton iterations\n", gpu::get_value(gpu::iters_newton_d));
     printf("--------------------------------------------------------------------------------\n");
 
     // deallocate global fields
