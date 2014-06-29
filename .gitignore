@@ -30,3 +30,4 @@ visitlog.py
 .fuse*
 *.log
 job.out
+log
