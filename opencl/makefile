@@ -23,12 +23,12 @@ operators.o: operators.c operators.h
 	$(CXX) $(CXXFLAGS) $(IFLAGS) -c operators.c -o operators.o
 	
 linalg.o: linalg.c linalg.h
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -I/opt/AMDAPP/include/ linalg.c -o linalg.o -lm
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -I /home/aivakhnenko/OpenCL/return/include -I/opt/AMDAPP/include/ linalg.c -o linalg.o -lm -L/home/aivakhnenko/OpenCL/return/lib64 -L/opt/clAmdBlas-1.10.321/lib64/ -lclAmdBlas -g
 	
 linalg_cl.o:	linalg_cl.c linalg.h
-	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -I/opt/AMDAPP/include/ linalg_cl.c -o linalg_cl.o
+	$(CXX) $(CXXFLAGS) $(IFLAGS) -c -I/opt/AMDAPP/include/ linalg_cl.c -o linalg_cl.o 
 main: $(OBJ) main.c $(HEADERS)
-	$(CXX) $(CXXFLAGS) *.o main.c -o main -I /home/aivakhnenko/OpenCL/return/include -I/opt/AMDAPP/include/ -L/home/aivakhnenko/OpenCL/return/lib64 -l OpenCL -lm -g -lclAmdBlas
+	$(CXX) $(CXXFLAGS) *.o main.c -o main -I /home/aivakhnenko/OpenCL/return/include -I/opt/AMDAPP/include/ -L/home/aivakhnenko/OpenCL/return/lib64 -L/opt/clAmdBlas-1.10.321/lib64/ -l OpenCL -lm -lclAmdBlas -g
 
 clean:
 	rm -f main

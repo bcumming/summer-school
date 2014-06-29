@@ -1,10 +1,10 @@
 ARCH = 35
 NVCC = nvcc
 CXXFLAGS = -mtune=native -ffast-math -fopenmp
-NVFLAGS = -Icuda_launch_config -g -O3 -rdc=true -arch=sm_$(ARCH) -use_fast_math $(addprefix -Xcompiler=,$(CXXFLAGS)) -Xptxas=-v -lcudadevrt
+NVFLAGS = -Icuda_launch_config -g -O3 -rdc=true -lineinfo -arch=sm_$(ARCH) -use_fast_math $(addprefix -Xcompiler=,$(CXXFLAGS)) -Xptxas=-v -lcudadevrt
 
 HEADERS = stats.h   data.h   operators.h   linalg.h
-OBJ     = stats.o   data.o   operators.o   linalg.o    main.o
+OBJ     = stats.o   data.o   main.o
 
 .SUFFIXES: .cu
 
@@ -14,12 +14,6 @@ stats.o: stats.cu stats.h
 	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
 
 data.o: data.cu data.h
-	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
-
-operators.o: operators.cu operators.h
-	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
-
-linalg.o: linalg.cu linalg.h
 	$(NVCC) $(NVFLAGS) $(IFLAGS) -c $< -o $@
 
 main.o: main.cu $(HEADERS)
