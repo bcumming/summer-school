@@ -154,7 +154,6 @@ inline __device__ double ss_sum(
 		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
 			length, x, length, y, buffer));
-		CUDA_ERR_CHECK(cudaDeviceSynchronize());
 	}
 
 	for (int i = 1, szbuffer = configs[0].grid.x; szbuffer != 1; i++)
@@ -168,13 +167,14 @@ inline __device__ double ss_sum(
 		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
 			x_length, x_dev, y_length, y_dev, buffer));
-		CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
 		szbuffer = configs[i].grid.x;
 	}
 
     // record the number of floating point oporations
     flops_blas1 += length;
+
+	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
 	double result = buffer[0];
     return result;
@@ -271,7 +271,6 @@ inline __device__ double ss_dot(
 		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
 			length, x, y, buffer));
-		CUDA_ERR_CHECK(cudaDeviceSynchronize());
 	}
 
 	for (int i = 1, szbuffer = configs[0].grid.x; szbuffer != 1; i++)
@@ -285,13 +284,14 @@ inline __device__ double ss_dot(
 		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<1, gpu::double1><<<
 			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
 			x_length, x_dev, y_length, y_dev, buffer));
-		CUDA_ERR_CHECK(cudaDeviceSynchronize());
 		
 		szbuffer = configs[i].grid.x;
 	}
 
     // record the number of floating point oporations
     flops_blas1 += 2 * length;
+
+	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
 	double result = buffer[0];    
     return result;
@@ -380,7 +380,6 @@ inline __device__ double ss_norm2(const double* const __restrict__ x, const int 
 		CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<
 			configs[0].grid, configs[0].block, configs[0].block.x * sizeof(double)>>>(
 			length, x, buffer));
-		CUDA_ERR_CHECK(cudaDeviceSynchronize());
 	}
 
 	for (int i = 1, szbuffer = configs[0].grid.x; szbuffer != 1; i++)
@@ -394,13 +393,14 @@ inline __device__ double ss_norm2(const double* const __restrict__ x, const int 
 		CUDA_LAUNCH_ERR_CHECK(ss_sum_kernel::kernel<1, gpu::double1><<<
 			configs[i].grid, configs[i].block, configs[i].block.x * sizeof(double)>>>(
 			x_length, x_dev, y_length, y_dev, buffer));
-		CUDA_ERR_CHECK(cudaDeviceSynchronize());
 		
 		szbuffer = configs[i].grid.x;
 	}
 	
     // record the number of floating point oporations
     flops_blas1 += 2 * length;
+
+	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
 	double result = buffer[0];
     return sqrt(result);
@@ -439,7 +439,6 @@ inline __device__ void ss_fill(double* __restrict__ x, const double value, const
 	using namespace gpu::ss_fill_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(x, value, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,7 +482,6 @@ inline __device__ void ss_axpy(
 	using namespace gpu::ss_axpy_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
 	// record the number of floating point oporations
 	flops_blas1 += 2 * N;
@@ -529,7 +527,6 @@ inline __device__ void ss_add_scaled_diff(double* __restrict__ y,
 	using namespace ss_add_scaled_diff_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, x, alpha, l, r, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
     flops_blas1 += 3 * N;
@@ -573,7 +570,6 @@ inline __device__ void ss_scaled_diff(double* __restrict__ y, const double alpha
 	using namespace gpu::ss_scaled_diff_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, l, r, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
     flops_blas1 += 2 * N;
@@ -615,7 +611,6 @@ inline __device__ void ss_scale(double* __restrict__ y, const double alpha,
 	using namespace gpu::ss_scale_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
     flops_blas1 += N;
@@ -660,7 +655,6 @@ inline __device__ void ss_lcomb(double* __restrict__ y, const double alpha,
 	using namespace gpu::ss_lcomb_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, beta, z, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
     // record the number of floating point oporations
     flops_blas1 += 3 * N;
@@ -695,7 +689,6 @@ inline __device__ void ss_copy(double* y, const double* const __restrict__ x, co
 	using namespace gpu::ss_copy_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, x, N));
-	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 }
 
 namespace gpu
