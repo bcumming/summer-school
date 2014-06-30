@@ -259,7 +259,7 @@ int main(int argc, char* argv[])
     
     // Calibrating kernels compute grids for the given problem dimensions.
     {
-    	determine_optimal_grid_block_config(diffusion_interior_grid_points, 1, nx - 2, ny - 2);
+    	determine_optimal_grid_block_config(diffusion_interior_grid_points, 1, nx, ny);
     	determine_optimal_grid_block_config(diffusion_east_west_boundary_points, 1, 1, ny - 2);
 		determine_optimal_grid_block_config(diffusion_north_south_boundary_points, 1, nx - 2, 1);
 		determine_optimal_grid_block_configs_reduction(ss_sum, 1, N);
