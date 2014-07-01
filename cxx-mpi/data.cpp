@@ -63,15 +63,15 @@ void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
     // TODOSS
     // determine the ranks of your 4 neighbours
     ////////////////////////////////////////////////////////////////////
-    neighbour_east  = -2; //mpi_rank+1;
-    neighbour_west  = -2; //mpi_rank-1;
-    neighbour_north = -2; //mpi_rank+ndomx;
-    neighbour_south = -2; //mpi_rank-ndomx;
+    neighbour_east  = mpi_rank+1;
+    neighbour_west  = mpi_rank-1;
+    neighbour_north = mpi_rank+ndomx;
+    neighbour_south = mpi_rank-ndomx;
 
-    neighbour_east  = -2; //mpi_rank+1;
-    neighbour_west  = -2; //mpi_rank-1;
-    neighbour_north = -2; //mpi_rank+ndomx;
-    neighbour_south = -2; //mpi_rank-ndomx;
+    neighbour_east  = -2;
+    neighbour_west  = -2;
+    neighbour_north = -2;
+    neighbour_south = -2;
 
     // set rank of neighbours that lie outside the domain to be -1
     if (domx == 1) {

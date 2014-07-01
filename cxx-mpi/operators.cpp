@@ -42,6 +42,11 @@ void diffusion(const data::Field &U, data::Field &S)
     int requests[8];
     int num_requests = 0;
 
+    // TODOSS
+    // uncomment and run
+    // draw a picture: what do you notice
+    // implement east west
+    /*
     if(domain.neighbour_north>=0) {
         // set tag to be the sender's rank
         // post receive
@@ -74,38 +79,7 @@ void diffusion(const data::Field &U, data::Field &S)
             MPI_COMM_WORLD, requests+num_requests);
         num_requests++;
     }
-    if(domain.neighbour_east>=0) {
-        // set tag to be the sender's rank
-        // post receive
-        MPI_Irecv(&bndE[0], ny, MPI_DOUBLE, domain.neighbour_east, domain.neighbour_east,
-            MPI_COMM_WORLD, requests+num_requests);
-        num_requests++;
-
-        // pack north buffer
-        for(int j=0; j<ny; j++)
-            buffE[j] = U(nx-1,j);
-
-        // post send
-        MPI_Isend(&buffE[0], ny, MPI_DOUBLE, domain.neighbour_east, domain.rank,
-            MPI_COMM_WORLD, requests+num_requests);
-        num_requests++;
-    }
-    if(domain.neighbour_west>=0) {
-        // set tag to be the sender's rank
-        // post receive
-        MPI_Irecv(&bndW[0], ny, MPI_DOUBLE, domain.neighbour_west, domain.neighbour_west,
-            MPI_COMM_WORLD, requests+num_requests);
-        num_requests++;
-
-        // pack north buffer
-        for(int j=0; j<ny; j++)
-            buffW[j] = U(0,j);
-
-        // post send
-        MPI_Isend(&buffW[0], ny, MPI_DOUBLE, domain.neighbour_west, domain.rank,
-            MPI_COMM_WORLD, requests+num_requests);
-        num_requests++;
-    }
+    */
 
     // the interior grid points
     #pragma omp parallel for
@@ -119,6 +93,7 @@ void diffusion(const data::Field &U, data::Field &S)
         }
     }
 
+    // TODOSS
     // wait on the receives
     MPI_Waitall(num_requests, requests, statuses);
 

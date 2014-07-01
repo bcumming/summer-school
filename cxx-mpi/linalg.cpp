@@ -61,9 +61,11 @@ double ss_dot(Field const& x, Field const& y, const int N)
     for (int i = 0; i < N; i++)
         result += x[i] * y[i];
 
-    MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    // TODOSS
+    //MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    //return result_global;
 
-    return result_global;
+    return result;
 }
 
 // computes the 2-norm of x
@@ -77,9 +79,11 @@ double ss_norm2(Field const& x, const int N)
     for (int i = 0; i < N; i++)
         result += x[i] * x[i];
 
-    MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    // TODOSS
+    //MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    //return sqrt(result_global);
 
-    return sqrt(result_global);
+    return sqrt(result);
 }
 
 // sets entries in a vector to value
