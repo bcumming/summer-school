@@ -58,7 +58,7 @@ The grid dimensions are important when choosing a set of parameters for running 
 $ OMP_NUM_THREADS=8 aprun -cc none ./main 128 128 100 0.01
 ```
 
-## Visualising the results
+## Visualizing the results
 
 The application outputs the final solution in the "brick of values" format, which is stored in the two files __output.bin__ and __output.bov__. These can be viewed using the popular visualization packages Paraview and Visit. An example output in Paraview is
 
