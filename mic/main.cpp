@@ -233,14 +233,12 @@ int main(int argc, char* argv[])
     fid << "BRICK_SIZE: 1.0 " << (options.ny-1)*options.dx << " 1.0" << std::endl;
 
     // print table sumarizing results
-    std::cout << "--------------------------------------------------------------------------------"
-              << std::endl;
-    std::cout << "simulation took " << timespent << " seconds" << std::endl;
-    std::cout << int(iters_cg) << " conjugate gradient iterations, at rate of "
-              << float(iters_newton/timespent) << " iters/second" << std::endl;
-    std::cout << iters_newton << " newton iterations" << std::endl;
-    std::cout << "--------------------------------------------------------------------------------"
-              << std::endl;
+    printf("--------------------------------------------------------------------------------\n");
+    printf("simulation took %f seconds (%f GFLOP/s)\n", timespent, flops_total / 1e9 / timespent);
+    printf("%d conjugate gradient iterations\n", (int)iters_cg);
+    printf("%d newton iterations\n", (int)iters_newton);
+    printf("--------------------------------------------------------------------------------\n");
+
 
     std::cout << "Goodbye!" << std::endl;
 

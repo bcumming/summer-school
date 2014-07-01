@@ -58,6 +58,8 @@ double ss_dot(Field const& x, Field const& y, const int N)
 	#pragma omp parallel for reduction(+:result)
     for (int i = 0; i < N / 8; i++)
         result += _mm512_reduce_add_pd(_mm512_mul_pd( _mm512_load_pd((void *)(x.data() + 8*i)) , _mm512_load_pd((void *)(y.data() + 8*i)) ));
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
     return result;
 }
 
@@ -72,6 +74,8 @@ double ss_norm2(Field const& x, const int N)
         __m512d vx = _mm512_load_pd((void *)(x.data() + 8*i));
         result += _mm512_reduce_add_pd(_mm512_mul_pd(vx, vx));
     }
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
     return sqrt(result);
 }
 
@@ -97,6 +101,8 @@ void ss_axpy(Field& y, const double alpha, Field const& x, const int N)
 	#pragma omp parallel for
     for (int i = 0; i < N / 8; i++)
         _mm512_store_pd((void *)(y.data() + 8*i), _mm512_add_pd( _mm512_load_pd((void *)(y.data() + 8*i)),  _mm512_mul_pd(_mm512_set1_pd(alpha), _mm512_load_pd((void *)(x.data() + 8*i))) ));
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
 }
 
 // computes y = x + alpha*(l-r)
@@ -108,6 +114,8 @@ void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
 	#pragma omp parallel for
     for (int i = 0; i < N / 8; i++)
         _mm512_store_pd((void *)(y.data() + 8*i), _mm512_add_pd( _mm512_load_pd((void *)(x.data() + 8*i)),  _mm512_mul_pd(_mm512_set1_pd(alpha), _mm512_sub_pd( _mm512_load_pd((void *)(l.data() + 8*i)), _mm512_load_pd((void *)(r.data() + 8*i)) )) ));
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 3 * N;
 }
 
 // computes y = alpha*(l-r)
@@ -119,6 +127,8 @@ void ss_scaled_diff(Field& y, const double alpha,
 	#pragma omp parallel for
     for (int i = 0; i < N / 8; i++)
         _mm512_store_pd((void *)(y.data() + 8*i), _mm512_mul_pd(_mm512_set1_pd(alpha), _mm512_sub_pd( _mm512_load_pd((void *)(l.data() + 8*i)), _mm512_load_pd((void *)(r.data() + 8*i)) )) );
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 2 * N;
 }
 
 // computes y := alpha*x
@@ -129,6 +139,8 @@ void ss_scale(Field& y, const double alpha, Field& x, const int N)
 	#pragma omp parallel for
     for (int i = 0; i < N / 8; i++)
         _mm512_store_pd((void *)(y.data() + 8*i), _mm512_mul_pd(_mm512_set1_pd(alpha), _mm512_load_pd((void *)(x.data() + 8*i))));
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + N;
 }
 
 // computes linear combination of two vectors y := alpha*x + beta*z
@@ -140,6 +152,8 @@ void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
 	#pragma omp parallel for
     for (int i = 0; i < N / 8; i++)
         _mm512_store_pd((void *)(y.data() + 8*i), _mm512_add_pd( _mm512_mul_pd(_mm512_set1_pd(alpha), _mm512_load_pd((void *)(x.data() + 8*i))), _mm512_mul_pd(_mm512_set1_pd(beta), _mm512_load_pd((void *)(z.data() + 8*i))) ));
+    // record the number of floating point oporations
+    flops_blas1 = flops_blas1 + 3 * N;
 }
 
 // copy one vector into another y := x
