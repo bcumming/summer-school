@@ -1,10 +1,17 @@
 #ifndef DATA_H
 #define DATA_H
 #include "immintrin.h"
-#include "stdlib.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <sys/mman.h>
 
 namespace data
 {
+
+#define HUGE_PAGE_SIZE (2 * 1024 * 1024)
+#define ALIGN_TO_PAGE_SIZE(x) \
+    (((x) + HUGE_PAGE_SIZE - 1) / HUGE_PAGE_SIZE * HUGE_PAGE_SIZE)
+
 // define some helper types that can be used to pass simulation
 // data around without haveing to pass individual parameters
 struct Discretization
@@ -36,20 +43,22 @@ class Field {
         #ifdef DEBUG
         assert(xdim>0 && ydim>0);
         #endif
-        posix_memalign((void **)&ptr_, sizeof(__m512d), xdim*ydim*sizeof(double));
+        ptr_ = (double *) malloc_huge_pages(xdim * ydim *sizeof(double));
+        //posix_memalign((void **)&ptr_, sizeof(__m512d), xdim*ydim*sizeof(double));
     };
 
     // destructor
     ~Field() {
-        free();
+        FieldFree();
     }
 
     void init(int xdim, int ydim) {
         #ifdef DEBUG
         assert(xdim>0 && ydim>0);
         #endif
-        free();
-        posix_memalign((void **)&ptr_, sizeof(__m512d), xdim*ydim*sizeof(double));
+        FieldFree();
+        ptr_ = (double *) malloc_huge_pages(xdim * ydim *sizeof(double));
+        //posix_memalign((void **)&ptr_, sizeof(__m512d), xdim*ydim*sizeof(double));
         #ifdef DEBUG
         assert(xdim>0 && ydim>0);
         #endif
@@ -94,8 +103,49 @@ class Field {
 
     private:
 
-    void free() {
-        if(ptr_) delete[] ptr_;
+    void* malloc_huge_pages(size_t size){
+        // Use 1 extra page to store allocation metadata
+        // (libhugetlbfs is more efficient in this regard)
+        size_t real_size = ALIGN_TO_PAGE_SIZE(size + HUGE_PAGE_SIZE);
+        char *ptr = (char *)mmap(NULL, real_size, PROT_READ | PROT_WRITE,
+                MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_HUGETLB, -1, 0);
+
+        if (ptr == MAP_FAILED) {
+            // The mmap() call failed. Try to malloc instead
+            ptr = (char *)malloc(real_size);
+            if (ptr == NULL) return NULL;
+            real_size = 0;
+        }
+
+        // Save real_size since mmunmap() requires a size parameter
+        *((size_t *)ptr) = real_size;
+        // Skip the page with metadata
+        return ptr + HUGE_PAGE_SIZE;
+    }
+
+    void free_huge_pages(void *ptr){
+        if (ptr == NULL) return;
+
+        // Jump back to the page with metadata
+        void *real_ptr = (char *)ptr - HUGE_PAGE_SIZE;
+
+        // Read the original allocation size
+        size_t real_size = *((size_t *)real_ptr);
+        assert(real_size % HUGE_PAGE_SIZE == 0);
+
+        if (real_size != 0)
+            // The memory was allocated via mmap()
+            // and must be deallocated via munmap()
+            munmap(real_ptr, real_size);
+        else
+            // The memory was allocated via malloc()
+            // and must be deallocated via free()
+            free(real_ptr);
+    }
+    
+    void FieldFree() {
+        //if(ptr_) delete[] ptr_;
+        if(ptr_) free_huge_pages((void *) ptr_);
         ptr_ = 0;
     }
 

@@ -1,5 +1,5 @@
 CXX=icc
-CXXFLAGS=-O3 -openmp -mmic
+CXXFLAGS=-O3 -openmp -mmic -g -debug inline-debug-info -shared-intel -opt-streaming-stores always -opt-streaming-cache-evict=0 -opt-prefetch-distance64,8
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
 HEADERS = stats.h   data.h   operators.h   linalg.h
