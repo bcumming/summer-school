@@ -24,8 +24,8 @@ namespace cpu
 namespace gpu
 {
 	// fields that hold the solution
-	extern __device__ double * __restrict__ x_old; // 2d
-	extern __device__ double * __restrict__ bndN, * __restrict__ bndE, * __restrict__ bndS, * __restrict__ bndW; // 1d
+	extern __constant__ double *x_old; // 2d
+	extern __constant__ double *bndN, *bndE, *bndS, *bndW; // 1d
 
 	extern __constant__ struct discretization_t options;
 }
@@ -42,7 +42,7 @@ namespace gpu
 	{
 		unsigned int x, y, z;
 		
-		__device__ operator ::dim3()
+		__host__ __device__ operator ::dim3()
 		{
 			return ::dim3(x, y, z);
 		}
@@ -78,11 +78,14 @@ namespace gpu
 			dst.e = src[i];
 			return dst;
 		}
-
 		inline static __device__ double1 ldg(const double* src, const int i)
 		{
 			double1 dst;
+#if __CUDA_ARCH__ >= 350
 			dst.e = __ldg(&src[i]);
+#else
+			dst.e = src[i];
+#endif
 			return dst;
 		}
 		
@@ -107,7 +110,11 @@ namespace gpu
 		inline static __device__ double2 ldg(const double* src, const int i)
 		{
 			double2 dst;
+#if __CUDA_ARCH__ >= 350
 			dst.e = __ldg(&((const double2*)src)[i].e);
+#else
+			dst.e = __ld(&((const double2*)src)[i].e);
+#endif
 			return dst;
 		}
 		
@@ -134,8 +141,13 @@ namespace gpu
 		inline static __device__ double4 ldg(const double* src, const int i)
 		{
 			double4 dst;
+#if __CUDA_ARCH__ >= 350
 			dst.e2[0] = __ldg(&((const double4*)src)[i].e2[0]);
 			dst.e2[1] = __ldg(&((const double4*)src)[i].e2[1]);
+#else
+			dst.e2[0] = __ld(&((const double4*)src)[i].e2[0]);
+			dst.e2[1] = __ld(&((const double4*)src)[i].e2[1]);
+#endif
 			return dst;
 		}
 		
@@ -246,7 +258,7 @@ namespace gpu
 			gpu::config_t c; \
 			size_t szblock = gpu::get_optimal_szblock(kernel<vector, gpu::double##vector>); \
 			gpu::get_optimal_grid_block_config(kernel<vector, gpu::double##vector>, ((nx) / (vector)), ny, szblock, &c.grid, &c.block); \
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(config_c, &c, sizeof(gpu::config_t))); \
+			config = c; \
 		} \
 	}
 
@@ -256,7 +268,7 @@ namespace gpu
 			using namespace gpu::kernel_name##_kernel; \
 			size_t szblock = gpu::get_optimal_szblock(kernel<vector, gpu::double##vector>); \
 			gpu::get_optimal_grid_block_config(kernel<vector, gpu::double##vector>, ((nx) / (vector)), 1, szblock, &c.grid, &c.block); \
-			CUDA_ERR_CHECK(cudaMemcpyToSymbol(configs_c, &c, sizeof(gpu::config_t), i * sizeof(gpu::config_t))); \
+			configs[i] = c; \
 		} \
 	}
 
@@ -289,20 +301,6 @@ namespace gpu
 	}
 
 	typedef struct __attribute__((packed)) { dim3 grid, block; } config_t;
-
-	// round up to the power of 2
-	template<typename T>
-	inline __device__ T roundPow2(T ptr, int pow2)
-	{
-		size_t number = (size_t)ptr;
-		pow2--;
-		pow2 = 0x01 << pow2;
-		pow2--;
-		number--;
-		number = number | pow2;
-		number++;
-		return (T)number;
-	}
 }
 
 #endif // DATA_H

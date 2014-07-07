@@ -1,4 +1,4 @@
-ARCH = 35
+ARCH = 30
 NVCC = nvcc
 CXXFLAGS = -mtune=native -ffast-math -fopenmp
 NVFLAGS = -Icuda_launch_config -g -O3 -rdc=true -lineinfo -arch=sm_$(ARCH) -use_fast_math $(addprefix -Xcompiler=,$(CXXFLAGS)) -Xptxas=-v -lcudadevrt

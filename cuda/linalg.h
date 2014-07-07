@@ -16,34 +16,26 @@
 
 namespace
 {
-	__device__ int cg_initialized = 0;
-	__shared__ double *r, *Ap, *p;
-	__shared__ double *Fx, *Fxold, *v, *xold; // 1d
+	int cg_initialized = 0;
+	double *r, *Ap, *p;
+	double *Fx, *Fxold, *v, *xold; // 1d
 
 	// initialize temporary storage fields used by the cg solver
 	// I do this here so that the fields are persistent between calls
 	// to the CG solver. This is useful if we want to avoid malloc/free calls
 	// on the device for the OpenACC implementation (feel free to suggest a better
 	// method for doing this)
-	inline __device__ void cg_init(const int N)
+	inline void cg_init(const int N)
 	{
 		using namespace gpu;
 	
-		double *Ap_u, *r_u, *p_u, *Fx_u, *Fxold_u, *v_u, *xold_u;
-		CUDA_ERR_CHECK(cudaMalloc(&Ap_u,    sizeof(double) * N + (1 << 7)));
-		CUDA_ERR_CHECK(cudaMalloc(&r_u,     sizeof(double) * N + (1 << 7)));
-		CUDA_ERR_CHECK(cudaMalloc(&p_u,     sizeof(double) * N + (1 << 7)));
-		CUDA_ERR_CHECK(cudaMalloc(&Fx_u,    sizeof(double) * N + (1 << 7)));
-		CUDA_ERR_CHECK(cudaMalloc(&Fxold_u, sizeof(double) * N + (1 << 7)));
-		CUDA_ERR_CHECK(cudaMalloc(&v_u,     sizeof(double) * N + (1 << 7)));
-		CUDA_ERR_CHECK(cudaMalloc(&xold_u,  sizeof(double) * N + (1 << 7)));
-		Ap = roundPow2(Ap_u, 7);
-		r = roundPow2(r_u, 7);
-		p = roundPow2(p_u, 7);
-		Fx = roundPow2(Fx_u, 7);
-		Fxold = roundPow2(Fxold_u, 7);	
-		v = roundPow2(v_u, 7);
-		xold = roundPow2(xold_u, 7);
+		CUDA_ERR_CHECK(cudaMalloc(&Ap,	sizeof(double) * N + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&r,	 sizeof(double) * N + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&p,	 sizeof(double) * N + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&Fx,	sizeof(double) * N + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&Fxold, sizeof(double) * N + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&v,	 sizeof(double) * N + (1 << 7)));
+		CUDA_ERR_CHECK(cudaMalloc(&xold,  sizeof(double) * N + (1 << 7)));
 	
 		cg_initialized = 1;
 	}
@@ -126,16 +118,15 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t configs_c[MAX_CONFIGS];
-		__shared__ config_t configs[MAX_CONFIGS];
-		__device__ double* buffer = NULL;
-		__device__ size_t szbuffer = 0;
+		config_t configs[MAX_CONFIGS];
+		double* buffer = NULL;
+		size_t szbuffer = 0;
 	}
 }
 
 // computes the sum of x and y elements
 // x and y are vectors of length N
-inline __device__ double ss_sum(
+inline double ss_sum(
 	const double* const __restrict__ x, const double* const __restrict__ y, const int length)
 {
 	using namespace gpu;
@@ -171,18 +162,19 @@ inline __device__ double ss_sum(
 		szbuffer = configs[i].grid.x;
 	}
 
-    // record the number of floating point oporations
-    flops_blas1 += length;
+	// record the number of floating point oporations
+	flops_blas1 += length;
 
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
-	double result = buffer[0];
-    return result;
+	double result;
+	CUDA_ERR_CHECK(cudaMemcpy(&result, &buffer[0], sizeof(double), cudaMemcpyDeviceToHost));
+	return result;
 }
 
 // computes the sum of x elements
 // x is a vector of length N
-inline __device__ double ss_sum(const double* const __restrict__ x, const int N)
+inline double ss_sum(const double* const __restrict__ x, const int N)
 {
 	return ss_sum(x, x + N / 2 + N % 2, N / 2 + N % 2);
 }
@@ -243,16 +235,15 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t configs_c[MAX_CONFIGS];
-		__shared__ config_t configs[MAX_CONFIGS];
-		__device__ double* buffer = NULL;
-		__device__ size_t szbuffer = 0;
+		config_t configs[MAX_CONFIGS];
+		double* buffer = NULL;
+		size_t szbuffer = 0;
 	}
 }
 
 // computes the inner product of x and y
 // x and y are vectors of length N
-inline __device__ double ss_dot(
+inline double ss_dot(
 	const double* const __restrict__ x, const double* const __restrict__ y, const int length)
 {
 	using namespace gpu;
@@ -288,13 +279,14 @@ inline __device__ double ss_dot(
 		szbuffer = configs[i].grid.x;
 	}
 
-    // record the number of floating point oporations
-    flops_blas1 += 2 * length;
+	// record the number of floating point oporations
+	flops_blas1 += 2 * length;
 
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
-	double result = buffer[0];    
-    return result;
+	double result;
+	CUDA_ERR_CHECK(cudaMemcpy(&result, &buffer[0], sizeof(double), cudaMemcpyDeviceToHost));
+	return result;
 }
 
 namespace gpu
@@ -353,16 +345,15 @@ namespace gpu
 				result[blockIdx.x] = shared[0];
 		}
 
-		__constant__ config_t configs_c[MAX_CONFIGS];
-		__shared__ config_t configs[MAX_CONFIGS];
-		__device__ double* buffer = NULL;
-		__device__ size_t szbuffer = 0;
+		config_t configs[MAX_CONFIGS];
+		double* buffer = NULL;
+		size_t szbuffer = 0;
 	}
 }
 
 // computes the 2-norm of x
 // x is a vector of length N
-inline __device__ double ss_norm2(const double* const __restrict__ x, const int length)
+inline double ss_norm2(const double* const __restrict__ x, const int length)
 {
 	using namespace gpu;
 	using namespace gpu::ss_norm2_kernel;
@@ -397,13 +388,14 @@ inline __device__ double ss_norm2(const double* const __restrict__ x, const int 
 		szbuffer = configs[i].grid.x;
 	}
 	
-    // record the number of floating point oporations
-    flops_blas1 += 2 * length;
+	// record the number of floating point oporations
+	flops_blas1 += 2 * length;
 
 	CUDA_ERR_CHECK(cudaDeviceSynchronize());
 
-	double result = buffer[0];
-    return sqrt(result);
+	double result;
+	CUDA_ERR_CHECK(cudaMemcpy(&result, &buffer[0], sizeof(double), cudaMemcpyDeviceToHost));
+	return sqrt(result);
 }
 
 namespace gpu
@@ -425,15 +417,14 @@ namespace gpu
 			((T*)x)[i] = vv;
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // sets entries in a vector to value
 // x is a vector of length N
 // value is th
-inline __device__ void ss_fill(double* __restrict__ x, const double value, const int N)
+inline void ss_fill(double* __restrict__ x, const double value, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_fill_kernel;
@@ -467,15 +458,14 @@ namespace gpu
 			T::stcs(y, i, yy);
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // computes y := alpha*x + y
 // x and y are vectors of length N
 // alpha is a scalar
-inline __device__ void ss_axpy(
+inline void ss_axpy(
 	double* __restrict__ y, const double alpha, const double* const __restrict__ x, const int N)
 {
 	using namespace gpu;
@@ -511,15 +501,14 @@ namespace gpu
 			T::stcs(y, i, yy);
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // computes y = x + alpha*(l-r)
 // y, x, l and r are vectors of length N
 // alpha is a scalar
-inline __device__ void ss_add_scaled_diff(double* __restrict__ y,
+inline void ss_add_scaled_diff(double* __restrict__ y,
 	const double* const __restrict__ x, const double alpha,
 	const double* const __restrict__ l, const double* const __restrict__ r, const int N)
 {
@@ -528,8 +517,8 @@ inline __device__ void ss_add_scaled_diff(double* __restrict__ y,
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, x, alpha, l, r, N));
 
-    // record the number of floating point oporations
-    flops_blas1 += 3 * N;
+	// record the number of floating point oporations
+	flops_blas1 += 3 * N;
 }
 
 namespace gpu
@@ -555,24 +544,23 @@ namespace gpu
 			T::stcs(y, i, yy);
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // computes y = alpha*(l-r)
 // y, l and r are vectors of length N
 // alpha is a scalar
-inline __device__ void ss_scaled_diff(double* __restrict__ y, const double alpha,
-    const double* const __restrict__ l, const double* const __restrict__ r, const int N)
+inline void ss_scaled_diff(double* __restrict__ y, const double alpha,
+	const double* const __restrict__ l, const double* const __restrict__ r, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_scaled_diff_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, l, r, N));
 
-    // record the number of floating point oporations
-    flops_blas1 += 2 * N;
+	// record the number of floating point oporations
+	flops_blas1 += 2 * N;
 }
 
 namespace gpu
@@ -596,15 +584,14 @@ namespace gpu
 			T::stcs(y, i, yy);
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // computes y := alpha*x
 // alpha is scalar
 // y and x are vectors of length N
-inline __device__ void ss_scale(double* __restrict__ y, const double alpha,
+inline void ss_scale(double* __restrict__ y, const double alpha,
 	const double* const __restrict__ x, const int N)
 {
 	using namespace gpu;
@@ -612,8 +599,8 @@ inline __device__ void ss_scale(double* __restrict__ y, const double alpha,
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, N));
 
-    // record the number of floating point oporations
-    flops_blas1 += N;
+	// record the number of floating point oporations
+	flops_blas1 += N;
 }
 
 namespace gpu
@@ -639,25 +626,24 @@ namespace gpu
 			T::stcs(y, i, yy);
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // computes linear combination of two vectors y := alpha*x + beta*z
 // alpha and beta are scalar
 // y, x and z are vectors of length N
-inline __device__ void ss_lcomb(double* __restrict__ y, const double alpha,
+inline void ss_lcomb(double* __restrict__ y, const double alpha,
 	const double* const __restrict__ x, const double beta,
-    const double* const __restrict__ z, const int N)
+	const double* const __restrict__ z, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_lcomb_kernel;
 
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, alpha, x, beta, z, N));
 
-    // record the number of floating point oporations
-    flops_blas1 += 3 * N;
+	// record the number of floating point oporations
+	flops_blas1 += 3 * N;
 }
 
 namespace gpu
@@ -676,14 +662,13 @@ namespace gpu
 			((T*)y)[i] = xx;
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 }
 
 // copy one vector into another y := x
 // x and y are vectors of length N
-inline __device__ void ss_copy(double* y, const double* const __restrict__ x, const int N)
+inline void ss_copy(double* y, const double* const __restrict__ x, const int N)
 {
 	using namespace gpu;
 	using namespace gpu::ss_copy_kernel;
@@ -691,100 +676,96 @@ inline __device__ void ss_copy(double* y, const double* const __restrict__ x, co
 	CUDA_LAUNCH_ERR_CHECK(kernel<2, gpu::double2><<<config.grid, config.block>>>(y, x, N));
 }
 
-namespace gpu
+// conjugate gradient solver
+// solve the linear system A*x = b for x
+// the matrix A is implicit in the objective function for the diffusion equation
+// the value in x constitute the "first guess" at the solution
+// x(N)
+// ON ENTRY contains the initial guess for the solution
+// ON EXIT  contains the solution
+inline bool ss_cg(int N, double* __restrict__ x, const double* const __restrict__ b,
+	const int maxiters, const double tol)
 {
-	// conjugate gradient solver
-	// solve the linear system A*x = b for x
-	// the matrix A is implicit in the objective function for the diffusion equation
-	// the value in x constitute the "first guess" at the solution
-	// x(N)
-	// ON ENTRY contains the initial guess for the solution
-	// ON EXIT  contains the solution
-	inline __device__ bool ss_cg(int N, double* __restrict__ x, const double* const __restrict__ b,
-		const int maxiters, const double tol)
+	if (!cg_initialized)
 	{
-		if (!cg_initialized)
-		{
-		    printf("INITIALIZING CG STATE\n");
-		    cg_init(N);
-		}
-
-		// epslion value use for matrix-vector approximation
-		double eps     = 1.e-8;
-		double eps_inv = 1. / eps;
-
-		// allocate memory for temporary storage
-		ss_fill(Fx,    0.0, N);
-		ss_fill(Fxold, 0.0, N);
-		ss_copy(xold, x, N);
-
-		// matrix vector multiplication is approximated with
-		// A*v = 1/epsilon * ( F(x+epsilon*v) - F(x) )
-		//     = 1/epsilon * ( F(x+epsilon*v) - Fxold )
-		// we compute Fxold at startup
-		// we have to keep x so that we can compute the F(x+exps*v)
-		diffusion(x, Fxold);
-
-		// v = x + epsilon*x
-		ss_scale(v, 1.0 + eps, x, N);
-
-		// Fx = F(v)
-		diffusion(v, Fx);
-
-		// r = b - A*x
-		// where A*x = (Fx-Fxold)/eps
-		ss_add_scaled_diff(r, b, -eps_inv, Fx, Fxold, N);
-
-		// p = r
-		ss_copy(p, r, N);
-
-		// rold = <r,r>
-		double rold = ss_dot(r, r, N), rnew = rold;
-
-		// check for convergence
-		if (sqrt(rold) < tol)
-		    return true;
-
-		int iter = 1; 
-		#pragma nounroll
-		for ( ; iter <= maxiters; iter++)
-		{
-		    // Ap = A*p
-		    ss_lcomb(v, 1.0, xold, eps, p, N);
-		    diffusion(v, Fx);
-		    ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
-
-		    // alpha = rold / p'*Ap
-		    double alpha = rold / ss_dot(p, Ap, N);
-
-		    // x += alpha*p
-		    ss_axpy(x, alpha, p, N);
-
-		    // r -= alpha*Ap
-		    ss_axpy(r, -alpha, Ap, N);
-
-		    // find new norm
-		    rnew = ss_dot(r, r, N);
-
-		    // test for convergence
-		    if (sqrt(rnew) < tol)
-		    {
-    			iters_cg += iter;
-		    	return true;
-		    }
-
-		    // p = r + rnew.rold * p
-		    ss_lcomb(p, 1.0, r, rnew / rold, p, N);
-
-		    rold = rnew;
-		}
-		iters_cg += iter;
-
-	    printf("ERROR: CG failed to converge after %d iterations\n", maxiters);
-	    printf("       achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
-		
-		return false;
+		printf("INITIALIZING CG STATE\n");
+		cg_init(N);
 	}
+
+	// epslion value use for matrix-vector approximation
+	double eps	 = 1.e-8;
+	double eps_inv = 1. / eps;
+
+	// allocate memory for temporary storage
+	ss_fill(Fx,	0.0, N);
+	ss_fill(Fxold, 0.0, N);
+	ss_copy(xold, x, N);
+
+	// matrix vector multiplication is approximated with
+	// A*v = 1/epsilon * ( F(x+epsilon*v) - F(x) )
+	//	 = 1/epsilon * ( F(x+epsilon*v) - Fxold )
+	// we compute Fxold at startup
+	// we have to keep x so that we can compute the F(x+exps*v)
+	diffusion(x, Fxold);
+
+	// v = x + epsilon*x
+	ss_scale(v, 1.0 + eps, x, N);
+
+	// Fx = F(v)
+	diffusion(v, Fx);
+
+	// r = b - A*x
+	// where A*x = (Fx-Fxold)/eps
+	ss_add_scaled_diff(r, b, -eps_inv, Fx, Fxold, N);
+
+	// p = r
+	ss_copy(p, r, N);
+
+	// rold = <r,r>
+	double rold = ss_dot(r, r, N), rnew = rold;
+
+	// check for convergence
+	if (sqrt(rold) < tol)
+		return true;
+
+	int iter = 1; 
+	for ( ; iter <= maxiters; iter++)
+	{
+		// Ap = A*p
+		ss_lcomb(v, 1.0, xold, eps, p, N);
+		diffusion(v, Fx);
+		ss_scaled_diff(Ap, eps_inv, Fx, Fxold, N);
+
+		// alpha = rold / p'*Ap
+		double alpha = rold / ss_dot(p, Ap, N);
+
+		// x += alpha*p
+		ss_axpy(x, alpha, p, N);
+
+		// r -= alpha*Ap
+		ss_axpy(r, -alpha, Ap, N);
+
+		// find new norm
+		rnew = ss_dot(r, r, N);
+
+		// test for convergence
+		if (sqrt(rnew) < tol)
+		{
+			iters_cg += iter;
+			return true;
+		}
+
+		// p = r + rnew.rold * p
+		ss_lcomb(p, 1.0, r, rnew / rold, p, N);
+
+		rold = rnew;
+	}
+	iters_cg += iter;
+
+	printf("ERROR: CG failed to converge after %d iterations\n", maxiters);
+	printf("	   achived tol = %E, required tol = %E\n", sqrt(rnew), tol);
+	
+	return false;
 }
 
 #endif // LINALG_H

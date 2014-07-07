@@ -45,8 +45,7 @@ namespace gpu
 						            + dxs * U(j,i) * (1.0 - U(j,i));
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 
 	namespace diffusion_east_west_boundary_points_kernel
@@ -83,8 +82,7 @@ namespace gpu
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 
 	namespace diffusion_north_south_boundary_points_kernel
@@ -121,8 +119,7 @@ namespace gpu
 					                + dxs * U(j, i) * (1.0 - U(j, i));
 		}
 
-		__constant__ config_t config_c;
-		__shared__ config_t config;
+		config_t config;
 	}
 
 	namespace diffusion_corner_points_kernel
@@ -173,8 +170,10 @@ namespace gpu
 			}
 		}
 	}
+}
 
-	inline __device__ void diffusion(const double* const __restrict__ up, double* __restrict__ sp)
+inline void diffusion(const double* const __restrict__ up, double* __restrict__ sp)
+{
 	{
 		using namespace gpu;
 
@@ -183,7 +182,7 @@ namespace gpu
 			using namespace diffusion_interior_grid_points_kernel;
 			CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<config.grid, config.block>>>(up, sp));
 		}
-	
+
 		// Launch kernels for parallel processing of boundary points.
 		{
 			using namespace diffusion_east_west_boundary_points_kernel;
@@ -193,13 +192,17 @@ namespace gpu
 			using namespace diffusion_north_south_boundary_points_kernel;
 			CUDA_LAUNCH_ERR_CHECK(kernel<1, gpu::double1><<<config.grid, config.block>>>(up, sp));
 		}
-	
+
 		// Finally, single-threaded processing of corner points.
 		{
 			using namespace diffusion_corner_points_kernel;
 			CUDA_LAUNCH_ERR_CHECK(kernel<<<1, 1>>>(up, sp));
 		}
-	
+	}
+
+	{
+		using namespace cpu;
+		
 		// Accumulate the flop counts
 		// 8 ops total per point
 		flops_diff +=
