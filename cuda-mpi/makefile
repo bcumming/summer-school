@@ -1,14 +1,18 @@
-NVCC=nvcc
-CXX=mpicxx
 PE_ENV=GNU
 ifeq ($(PE_ENV),GNU)
-	#CXXFLAGS=-O0 -g -fopenmp -DDEBUG
+	MPICXX=mpicxx
 	CXXFLAGS=-g -O3 -fopenmp
 endif
 ifeq ($(PE_ENV),CRAY)
+	MPICXX=CC
 	CXXFLAGS=-O3
 endif
-NVCCFLAGS = $(addprefix -Xcompiler ,$(CXXFLAGS))
+
+#
+# Locate folder with mpi.h and add it to include paths
+# (needed for non-MPI compiler that uses MPI-aware headers, e.g. CUDA).
+#
+CINC += -I$(shell dirname $(shell echo "\#include <mpi.h>" | $(MPICC) -xc - -M | grep -m 1 -o -e "[^ ]*mpi\.h"))
 
 SOURCES = stats.cpp data.cpp operators.cpp linalg.cpp
 HEADERS = stats.h   data.h   operators.h   linalg.h
