@@ -137,13 +137,13 @@ int main(int argc, char* argv[])
 		determine_optimal_grid_block_configs_reduction(ss_sum, 1, N);
 		determine_optimal_grid_block_configs_reduction(ss_dot, 1, N);
 		determine_optimal_grid_block_configs_reduction(ss_norm2, 1, N);
-		determine_optimal_grid_block_config(ss_fill, 2, N, 1);
-		determine_optimal_grid_block_config(ss_axpy, 2, N, 1);
-		determine_optimal_grid_block_config(ss_add_scaled_diff, 2, N, 1);
-		determine_optimal_grid_block_config(ss_scaled_diff, 2, N, 1);
-		determine_optimal_grid_block_config(ss_scale, 2, N, 1);
-		determine_optimal_grid_block_config(ss_lcomb, 2, N, 1);
-		determine_optimal_grid_block_config(ss_copy, 2, N, 1);
+		determine_optimal_grid_block_config(ss_fill, 1, N, 1);
+		determine_optimal_grid_block_config(ss_axpy, 1, N, 1);
+		determine_optimal_grid_block_config(ss_add_scaled_diff, 1, N, 1);
+		determine_optimal_grid_block_config(ss_scaled_diff, 1, N, 1);
+		determine_optimal_grid_block_config(ss_scale, 1, N, 1);
+		determine_optimal_grid_block_config(ss_lcomb, 1, N, 1);
+		determine_optimal_grid_block_config(ss_copy, 1, N, 1);
 	}
 
 	double *x_old_h, *bndN_h, *bndS_h, *bndE_h, *bndW_h;
