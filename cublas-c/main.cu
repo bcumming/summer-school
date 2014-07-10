@@ -135,15 +135,11 @@ int main(int argc, char* argv[])
 		determine_optimal_grid_block_config(diffusion_east_west_boundary_points, 1, 1, ny - 2);
 		determine_optimal_grid_block_config(diffusion_north_south_boundary_points, 1, nx - 2, 1);
 		determine_optimal_grid_block_configs_reduction(ss_sum, 1, N);
-		determine_optimal_grid_block_configs_reduction(ss_dot, 1, N);
-		determine_optimal_grid_block_configs_reduction(ss_norm2, 1, N);
 		determine_optimal_grid_block_config(ss_fill, 1, N, 1);
-		determine_optimal_grid_block_config(ss_axpy, 1, N, 1);
 		determine_optimal_grid_block_config(ss_add_scaled_diff, 1, N, 1);
 		determine_optimal_grid_block_config(ss_scaled_diff, 1, N, 1);
 		determine_optimal_grid_block_config(ss_scale, 1, N, 1);
 		determine_optimal_grid_block_config(ss_lcomb, 1, N, 1);
-		determine_optimal_grid_block_config(ss_copy, 1, N, 1);
 	}
 
 	double *x_old_h, *bndN_h, *bndS_h, *bndE_h, *bndW_h;
@@ -169,6 +165,9 @@ int main(int argc, char* argv[])
 	// setting up flops counters
 	flops_diff = 0, flops_blas1 = 0;
 	iters_cg = 0; iters_newton = 0;
+
+	// Initialize CUBLAS
+	CUBLAS_ERR_CHECK(cublasCreate(&cublasHandle));
 	
 	// set dirichlet boundary conditions to 0 all around
 	ss_fill(get_value(x_old),  0, N);
