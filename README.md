@@ -60,8 +60,4 @@ $ OMP_NUM_THREADS=8 aprun -cc none ./main 128 128 100 0.01
 
 ## Visualizing the results
 
-The application outputs the final solution in the "brick of values" format, which is stored in the two files __output.bin__ and __output.bov__. These can be viewed using the popular visualization packages Paraview and Visit. An example output in Paraview is
-
-![paraview.png](images/paraview.png)
-
-The visualization isn't just a pretty picture, it is very useful for debugging the code. A quick visual check can show if there are any problems with the boundary conditions, or halo exchanges for the MPI implementation. For this reason, the MPI implementations use MPI IO to output the global solution, and it is highly recommended that this feature should be used to help students implement halo exchanges.
+The application outputs the final solution in the "brick of values" format, which is stored in the two files __output.bin__ and __output.bov__. These can be viewed using the popular visualization packages Paraview and Visit. The visualization isn't just a pretty picture, it is very useful for debugging the code. A quick visual check can show if there are any problems with the boundary conditions, or halo exchanges for the MPI implementation. For this reason, the MPI implementations use MPI IO to output the global solution, and it is highly recommended that this feature should be used to help students implement halo exchanges.
