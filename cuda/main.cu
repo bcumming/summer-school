@@ -60,7 +60,9 @@ void write_binary(std::string fname, Field &u, SubDomain &domain, Discretization
     result = MPI_File_set_view(filehandle, disp, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
     assert(result==MPI_SUCCESS);
 
-    result = MPI_File_write_all(filehandle, u.data(), domain.N, MPI_DOUBLE, MPI_STATUS_IGNORE);
+    // update the host values, before writing to file
+    u.update_host();
+    result = MPI_File_write_all(filehandle, u.host_data(), domain.N, MPI_DOUBLE, MPI_STATUS_IGNORE);
     assert(result==MPI_SUCCESS);
 
     result = MPI_Type_free(&filetype);
@@ -132,6 +134,20 @@ int main(int argc, char* argv[])
     // read command line arguments
     readcmdline(options, argc, argv);
 
+    // initialize cuda
+    // assert that there is exactly one GPU per node, i.e. there should only be 1 GPU
+    // visible to each MPI rank
+    int device_count;
+    cuda_api_call( cudaGetDeviceCount(&device_count) );
+    if(device_count != 1) {
+        std::cerr << "error: there should be one device per node" << std::endl;
+        exit(-1);
+    }
+    cuda_api_call( cudaSetDevice(0) );
+    // get the cublas handle to force cublas initialization outside the main time
+    // stepping loop, to ensure that the timing doesn't count initialization costs
+    auto handle = cublas_handle();
+
     // initialize MPI
     int mpi_rank, mpi_size;
     if( MPI_Init(&argc, &argv) != MPI_SUCCESS ) {
@@ -147,13 +163,12 @@ int main(int argc, char* argv[])
 
     int nx = domain.nx;
     int ny = domain.ny;
-    int N  = domain.N;
     int nt  = options.nt;
 
     if( domain.rank == 0 ) {
         std::cout << "========================================================================" << std::endl;
         std::cout << "                      Welcome to mini-stencil!" << std::endl;
-        std::cout << "version :: C++ with MPI : " << domain.size << " MPI ranks" << std::endl;
+        std::cout << "version :: CUDA with MPI : " << domain.size << " MPI ranks" << std::endl;
         std::cout << "mesh    :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
         std::cout << "time    :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
         std::cout << "========================================================================" << std::endl;
@@ -198,12 +213,13 @@ int main(int argc, char* argv[])
         }
     }
 
-    double time_in_bcs = 0.0;
-    double time_in_diff = 0.0;
+    // update initial conditions on the device
+    x_new.update_device();
+
     flops_bc = 0;
     flops_diff = 0;
     flops_blas1 = 0;
-    verbose_output = false;
+    verbose_output = true && !domain.rank;
     iters_cg = 0;
     iters_newton = 0;
 
@@ -211,7 +227,6 @@ int main(int argc, char* argv[])
     double timespent = -omp_get_wtime();
 
     // main timeloop
-    double alpha = options.alpha;
     double tolerance = 1.e-6;
     for (int timestep = 1; timestep <= nt; timestep++)
     {
@@ -261,15 +276,17 @@ int main(int argc, char* argv[])
                       << std::endl;
         }
         if (!converged) {
-            std::cerr << "step " << timestep
-                      << " ERROR : nonlinear iterations failed to converge" << std::endl;;
+            if(!domain.rank) {
+                std::cerr << "step " << timestep
+                          << " ERROR : nonlinear iterations failed to converge" << std::endl;;
+            }
             break;
         }
     }
 
     // get times
     timespent += omp_get_wtime();
-    unsigned long long flops_total = flops_diff + flops_blas1;
+    //unsigned long long flops_total = flops_diff + flops_blas1;
 
     ////////////////////////////////////////////////////////////////////
     // write final solution to BOV file for visualization

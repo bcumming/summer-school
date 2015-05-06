@@ -15,6 +15,124 @@
 
 namespace linalg {
 
+namespace kernels {
+
+    __global__
+    void fill(
+            double *y,
+            const double value,
+            int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] = value;
+            i += grid_step;
+        }
+    }
+
+    __global__
+    void axpy(
+            double* y,
+            const double alpha,
+            const double* x,
+            int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] += alpha * x[i];
+            i += grid_step;
+        }
+    }
+
+    __global__
+    void add_scaled_diff(
+            double *y,
+            const double* x,
+            const double alpha,
+            const double *l,
+            const double *r,
+            const int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] = x[i] + alpha * (l[i] - r[i]);
+            i += grid_step;
+        }
+    }
+
+    __global__
+    void scaled_diff(
+            double *y,
+            const double alpha,
+            const double* l,
+            const double* r,
+            int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] = alpha * (l[i] - r[i]);
+            i += grid_step;
+        }
+    }
+
+    __global__
+    void scale(
+            double *y,
+            const double alpha,
+            const double *x,
+            int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] = alpha * x[i];
+            i += grid_step;
+        }
+    }
+
+    __global__
+    void lcomb(
+            double *y,
+            const double alpha,
+            const double *x,
+            const double beta,
+            const double *z,
+            int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] = alpha * x[i] + beta * z[i];
+            i += grid_step;
+        }
+    }
+
+    __global__
+    void copy(
+            double *y,
+            const double* x,
+            int n)
+    {
+        auto i = threadIdx.x + blockDim.x*blockIdx.x;
+        auto const grid_step = blockDim.x * gridDim.x;
+
+        while(i < n) {
+            y[i] = x[i];
+            i += grid_step;
+        }
+    }
+} // namespace kernels
+
 bool cg_initialized = false;
 Field r;
 Field Ap;
@@ -24,6 +142,15 @@ Field Fxold;
 Field v;
 Field xold;
 
+// block dimensions for blas 1 calls
+const int block_dim = 192;
+const int max_blocks_per_grid = 128;
+
+int calculate_grid_dim(const int block_dim, int n) {
+    int num_blocks = n/block_dim + (n%block_dim ? 1 : 0);
+    return num_blocks < max_blocks_per_grid ? num_blocks : max_blocks_per_grid;
+}
+
 using namespace operators;
 using namespace stats;
 using data::Field;
@@ -31,8 +158,7 @@ using data::Field;
 // initialize temporary storage fields used by the cg solver
 // I do this here so that the fields are persistent between calls
 // to the CG solver. This is useful if we want to avoid malloc/free calls
-// on the device for the OpenACC implementation (feel free to suggest a better
-// method for doing this)
+// on the device for the OpenACC implementation
 void cg_init(int nx, int ny)
 {
     Ap.init(nx,ny);
@@ -56,11 +182,15 @@ double ss_dot(Field const& x, Field const& y)
 {
     double result = 0;
     double result_global = 0;
-    int N = y.length();
+    const int N = x.length();
 
-    #pragma omp parallel for reduction(+:result)
-    for (int i = 0; i < N; i++)
-        result += x[i] * y[i];
+    auto status =
+        cublasDdot(
+            cublas_handle(),  N,
+            x.device_data(), 1,
+            y.device_data(), 1,
+            &result
+        );
 
     MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
@@ -73,11 +203,18 @@ double ss_norm2(Field const& x)
 {
     double result = 0;
     double result_global = 0;
-    int N = x.length();
+    const int n = x.length();
 
-    #pragma omp parallel for reduction(+:result)
-    for (int i = 0; i < N; i++)
-        result += x[i] * x[i];
+    auto status =
+        cublasDnrm2(
+            cublas_handle(), n,
+            x.device_data(), 1,
+            &result
+        );
+
+    // take the square of the result, because we still have to sum of the local
+    // partial sums before taking sqrt of the full global sum
+    result *= result;
 
     MPI_Allreduce(&result, &result_global, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
@@ -89,11 +226,10 @@ double ss_norm2(Field const& x)
 // value is th
 void ss_fill(Field& x, const double value)
 {
-    int N = x.length();
+    const int n = x.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        x[i] = value;
+    kernels::fill<<<grid_dim, block_dim>>>(x.device_data(), value, n);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,11 +241,11 @@ void ss_fill(Field& x, const double value)
 // alpha is a scalar
 void ss_axpy(Field& y, const double alpha, Field const& x)
 {
-    int N = y.length();
+    const int n = y.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        y[i] += alpha * x[i];
+    kernels::axpy<<<grid_dim, block_dim>>>
+        (y.device_data(), alpha, x.device_data(), x.length());
 }
 
 // computes y = x + alpha*(l-r)
@@ -118,11 +254,11 @@ void ss_axpy(Field& y, const double alpha, Field const& x)
 void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
     Field const& l, Field const& r)
 {
-    int N = y.length();
+    const int n = y.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        y[i] = x[i] + alpha * (l[i] - r[i]);
+    kernels::add_scaled_diff<<<grid_dim, block_dim>>>
+        (y.device_data(), x.device_data(), alpha, l.device_data(), r.device_data(), n);
 }
 
 // computes y = alpha*(l-r)
@@ -131,11 +267,11 @@ void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
 void ss_scaled_diff(Field& y, const double alpha,
     Field const& l, Field const& r)
 {
-    int N = y.length();
+    const int n = y.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        y[i] = alpha * (l[i] - r[i]);
+    kernels::scaled_diff<<<grid_dim, block_dim>>>
+        (y.device_data(), alpha, l.device_data(), r.device_data(), n);
 }
 
 // computes y := alpha*x
@@ -143,11 +279,11 @@ void ss_scaled_diff(Field& y, const double alpha,
 // y and x are vectors on length n
 void ss_scale(Field& y, const double alpha, Field& x)
 {
-    int N = y.length();
+    const int n = x.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        y[i] = alpha * x[i];
+    kernels::scale<<<grid_dim, block_dim>>>
+        (y.device_data(), alpha, x.device_data(), n);
 }
 
 // computes linear combination of two vectors y := alpha*x + beta*z
@@ -156,22 +292,22 @@ void ss_scale(Field& y, const double alpha, Field& x)
 void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
     Field const& z)
 {
-    int N = y.length();
+    const int n = x.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        y[i] = alpha * x[i] + beta * z[i];
+    kernels::lcomb<<<grid_dim, block_dim>>>
+        (y.device_data(), alpha, x.device_data(), beta, z.device_data(), n);
 }
 
 // copy one vector into another y := x
 // x and y are vectors of length N
 void ss_copy(Field& y, Field const& x)
 {
-    int N = y.length();
+    const int n = x.length();
+    auto grid_dim = calculate_grid_dim(block_dim, n);
 
-    #pragma omp parallel for
-    for (int i = 0; i < N; i++)
-        y[i] = x[i];
+    kernels::copy<<<grid_dim, block_dim>>>
+        (y.device_data(), x.device_data(), n);
 }
 
 // conjugate gradient solver
@@ -192,7 +328,7 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
         cg_init(nx,ny);
     }
 
-    // epslion value use for matrix-vector approximation
+    // epsilon value use for matrix-vector approximation
     double eps     = 1.e-8;
     double eps_inv = 1. / eps;
 
@@ -250,7 +386,6 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
 
         // find new norm
         rnew = ss_dot(r, r);
-        //std::cout << "    ==== cg " << iter << " : " << rnew << std::endl;
 
         // test for convergence
         if (sqrt(rnew) < tol) {
@@ -265,8 +400,11 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
     }
     stats::iters_cg += iter + 1;
 
-    if (!success)
-        std::cerr << "ERROR: CG failed to converge" << std::endl;
+    if (!success && !data::domain.rank) {
+        std::cerr << "ERROR: CG failed to converge after " << iter
+                  << " iterations, with residual " << sqrt(rnew)
+                  << std::endl;
+    }
 }
 
 } // namespace linalg

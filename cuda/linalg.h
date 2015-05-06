@@ -4,6 +4,8 @@
 #ifndef LINALG_H
 #define LINALG_H
 
+#include <cublas_v2.h>
+
 #include "data.h"
 
 namespace linalg
@@ -14,10 +16,7 @@ namespace linalg
     extern Field r, Ap, p, Fx, Fxold, v, xold; // 1d
 
     // initialize temporary storage fields used by the cg solver
-    // I do this here so that the fields are persistent between calls
-    // to the CG solver. This is useful if we want to avoid malloc/free calls
-    // on the device for the OpenACC implementation (feel free to suggest a better
-    // method for doing this)
+    // initialize cublas
     void cg_init(const int N);
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +24,6 @@ namespace linalg
     ////////////////////////////////////////////////////////////////////////////////
 
     // computes the inner product of x and y
-    // x and y are vectors on length N
     double ss_dot(Field const& x, Field const& y);
 
     // computes the 2-norm of x
@@ -50,13 +48,13 @@ namespace linalg
     // y, x, l and r are vectors of length N
     // alpha is a scalar
     void ss_add_scaled_diff(Field& y, Field const& x, const double alpha,
-        Field const& l, Field const& r);
+            Field const& l, Field const& r);
 
     // computes y = alpha*(l-r)
     // y, l and r are vectors of length N
     // alpha is a scalar
     void ss_scaled_diff(Field& y, const double alpha,
-        Field const& l, Field const& r);
+            Field const& l, Field const& r);
 
     // computes y := alpha*x
     // alpha is scalar
@@ -67,7 +65,7 @@ namespace linalg
     // alpha and beta are scalar
     // y, x and z are vectors on length n
     void ss_lcomb(Field& y, const double alpha, Field& x, const double beta,
-        Field const& z);
+            Field const& z);
 
     // copy one vector into another y := x
     // x and y are vectors of length N
@@ -80,7 +78,8 @@ namespace linalg
     // x(N)
     // ON ENTRY contains the initial guess for the solution
     // ON EXIT  contains the solution
-    void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool& success);
+    void ss_cg(Field& x, Field const& b, const int maxiters, const double tol,
+            bool& success);
 }
 
 #endif // LINALG_H

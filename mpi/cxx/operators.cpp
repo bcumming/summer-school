@@ -6,6 +6,8 @@
 
 // Description: Contains simple operators which can be used on 3d-meshes
 
+#include <iostream>
+
 #include <mpi.h>
 
 #include "data.h"
