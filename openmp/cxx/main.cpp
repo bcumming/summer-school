@@ -41,6 +41,7 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
         printf("  ny  number of gridpoints in y-direction\n");
         printf("  nt  number of timesteps\n");
         printf("  t   total time\n");
+        printf("  verbose   (optional) verbose output\n");
         exit(1);
     }
 
@@ -74,6 +75,12 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
     {
         fprintf(stderr, "t must be positive real value\n");
         exit(-1);
+    }
+
+    // set verbosity if requested
+    verbose_output = false;
+    if (argc==6) {
+        verbose_output = true;
     }
 
     // store the parameters
@@ -149,7 +156,6 @@ int main(int argc, char* argv[])
     flops_bc = 0;
     flops_diff = 0;
     flops_blas1 = 0;
-    verbose_output = false;
     iters_cg = 0;
     iters_newton = 0;
 
@@ -193,7 +199,6 @@ int main(int argc, char* argv[])
         iters_newton += it+1;
 
         // output some statistics
-        //if (converged && verbose_output)
         if (converged && verbose_output) {
             std::cout << "step " << timestep
                       << " required " << it

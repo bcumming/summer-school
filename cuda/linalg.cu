@@ -358,13 +358,12 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
     ss_copy(p, r);
 
     // rold = <r,r>
-    double rold = ss_dot(r, r), rnew = rold;
+    double rold = ss_dot(r, r);
+    double rnew = rold;
 
     // check for convergence
-    success = false;
-    if (sqrt(rold) < tol)
-    {
-        success = true;
+    success = sqrt(rold) < tol;
+    if (success) {
         return;
     }
 
@@ -393,7 +392,7 @@ void ss_cg(Field& x, Field const& b, const int maxiters, const double tol, bool&
             break;
         }
 
-        // p = r + rnew.rold * p
+        // p = r + (rnew/rold) * p
         ss_lcomb(p, 1.0, r, rnew / rold, p);
 
         rold = rnew;

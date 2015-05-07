@@ -78,10 +78,10 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
     }
 
     // set verbosity if requested
-    if (argc==6)
+    verbose_output = false;
+    if (argc==6) {
         verbose_output = true;
-    else
-        verbose_output = false;
+    }
 
     // store the parameters
     options.N = options.nx * options.ny;
@@ -108,11 +108,19 @@ int main(int argc, char* argv[])
     int N  = options.N;
     int nt = options.nt;
 
+    // set iteration parameters
+    int max_cg_iters     = 200;
+    int max_newton_iters = 50;
+    double tolerance     = 1.e-6;
+
     std::cout << "========================================================================" << std::endl;
     std::cout << "                      Welcome to mini-stencil!" << std::endl;
-    std::cout << "version :: C++ serial" << std::endl;
-    std::cout << "mesh    :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
-    std::cout << "time    :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
+    std::cout << "version   :: C++ serial" << std::endl;
+    std::cout << "mesh      :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
+    std::cout << "time      :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
+    std::cout << "iteration :: " << "CG "          << max_cg_iters
+                                 << ", Newton "    << max_newton_iters
+                                 << ", tolerance " << tolerance << std::endl;;
     std::cout << "========================================================================" << std::endl;
 
     // allocate global fields
@@ -158,7 +166,6 @@ int main(int argc, char* argv[])
     double timespent = -omp_get_wtime();
 
     // main timeloop
-    double tolerance = 1.e-6;
     for (int timestep = 1; timestep <= nt; timestep++)
     {
         // set x_new and x_old to be the solution
@@ -167,7 +174,7 @@ int main(int argc, char* argv[])
         double residual;
         bool converged = false;
         int it;
-        for (it=0; it<50; it++)
+        for (it=0; it<max_newton_iters; it++)
         {
             // compute residual : requires both x_new and x_old
             diffusion(x_new, b);
@@ -182,7 +189,7 @@ int main(int argc, char* argv[])
 
             // solve linear system to get -deltax
             bool cg_converged = false;
-            ss_cg(deltax, b, 200, tolerance, cg_converged);
+            ss_cg(deltax, b, max_cg_iters, tolerance, cg_converged);
 
             // check that the CG solver converged
             if (!cg_converged) break;

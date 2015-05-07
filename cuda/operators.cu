@@ -188,7 +188,7 @@ namespace kernels {
 
 enum class Boundary {north, east, south, west};
 
-void pack_buffer(data::Field const& from, data::Field &buff, Boundary boundary) {
+void pack_buffer(data::Field const& from, data::Field &buffer, Boundary boundary) {
     int stride;
     int startx, starty;
     auto nx = from.xdim();
@@ -217,11 +217,27 @@ void pack_buffer(data::Field const& from, data::Field &buff, Boundary boundary) 
     }
     auto pos = startx + starty*nx;
 
-    std::cout << "BOUNDARY " << boundary << " : " << buffer.length() << " by " << stride << std::endl;
+    auto p = [] (Boundary b) -> std::string {
+        switch(b) {
+            case Boundary::north :
+                return "north";
+            case Boundary::south :
+                return "south";
+            case Boundary::east :
+                return "east";
+            case Boundary::west :
+                return "west";
+        }
+        return "";
+    };
+
+    //std::cout << "BOUNDARY " << p(boundary) << " : " << buffer.length() << " by " << stride
+              //<< " : global domain " << from.xdim() << "*" << from.ydim()
+              //<< std::endl;
     auto status = cublasDcopy(
-        cublas_handle(), buff.length(),
+        cublas_handle(), buffer.length(),
         from.device_data() + pos, stride,
-        buff.device_data(),    1
+        buffer.device_data(),    1
     );
     if(status != CUBLAS_STATUS_SUCCESS) {
         std::cerr << "error : cublas copy for boundary condition" << std::endl;
@@ -330,12 +346,14 @@ void diffusion(data::Field const& U, data::Field &S)
     MPI_Waitall(num_requests, requests, statuses);
 
     // apply stencil at boundaries
-    auto bnd_grid_dim_y = calculate_grid_dim(ny, 192);
-    kernels::stencil_east_west<<<bnd_grid_dim_y, 192>>>(S.device_data(), U.device_data());
+    auto bnd_grid_dim_y = calculate_grid_dim(ny, 64);
+    //std::cout << "[[ " << 64 << ", " << bnd_grid_dim_y << "]]" << std::endl;
+    kernels::stencil_east_west<<<bnd_grid_dim_y, 64>>>(S.device_data(), U.device_data());
     cuda_check_last_kernel("east-west stencil kernel");
 
-    auto bnd_grid_dim_x = calculate_grid_dim(nx, 192);
-    kernels::stencil_north_south<<<bnd_grid_dim_x, 192>>>(S.device_data(), U.device_data());
+    auto bnd_grid_dim_x = calculate_grid_dim(nx, 64);
+    //std::cout << "[[ " << 64 << ", " << bnd_grid_dim_x << "]]" << std::endl;
+    kernels::stencil_north_south<<<bnd_grid_dim_x, 64>>>(S.device_data(), U.device_data());
     cuda_check_last_kernel("north-south stencil kernel");
 
     kernels::stencil_corners<<<1, 1>>>(S.device_data(), U.device_data());

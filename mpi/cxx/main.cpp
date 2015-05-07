@@ -111,8 +111,10 @@ static void readcmdline(Discretization& options, int argc, char* argv[])
         exit(-1);
     }
 
-    if( argc==6 )
-        verbose_output = true;
+    verbose_output = false;
+    if( argc==6 ) {
+        verbose_output = (domain.rank==0);
+    }
 
     // compute timestep size
     options.dt = t / options.nt;
@@ -150,12 +152,20 @@ int main(int argc, char* argv[])
     int N  = domain.N;
     int nt  = options.nt;
 
+    // set iteration parameters
+    int max_cg_iters     = 200;
+    int max_newton_iters = 50;
+    double tolerance     = 1.e-6;
+
     if( domain.rank == 0 ) {
         std::cout << "========================================================================" << std::endl;
         std::cout << "                      Welcome to mini-stencil!" << std::endl;
-        std::cout << "version :: C++ with MPI : " << domain.size << " MPI ranks" << std::endl;
-        std::cout << "mesh    :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
-        std::cout << "time    :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
+        std::cout << "version   :: CUDA with MPI : " << domain.size << " MPI ranks" << std::endl;
+        std::cout << "mesh      :: " << options.nx << " * " << options.ny << " dx = " << options.dx << std::endl;
+        std::cout << "time      :: " << nt << " time steps from 0 .. " << options.nt*options.dt << std::endl;;
+        std::cout << "iteration :: " << "CG "          << max_cg_iters
+                                     << ", Newton "    << max_newton_iters
+                                     << ", tolerance " << tolerance << std::endl;;
         std::cout << "========================================================================" << std::endl;
     }
 
@@ -198,12 +208,9 @@ int main(int argc, char* argv[])
         }
     }
 
-    double time_in_bcs = 0.0;
-    double time_in_diff = 0.0;
     flops_bc = 0;
     flops_diff = 0;
     flops_blas1 = 0;
-    verbose_output = false;
     iters_cg = 0;
     iters_newton = 0;
 
@@ -211,8 +218,6 @@ int main(int argc, char* argv[])
     double timespent = -omp_get_wtime();
 
     // main timeloop
-    double alpha = options.alpha;
-    double tolerance = 1.e-6;
     for (int timestep = 1; timestep <= nt; timestep++)
     {
         // set x_new and x_old to be the solution
@@ -221,7 +226,7 @@ int main(int argc, char* argv[])
         double residual;
         bool converged = false;
         int it;
-        for (it=0; it<50; it++)
+        for (it=0; it<max_newton_iters; it++)
         {
             // compute residual : requires both x_new and x_old
             diffusion(x_new, b);
@@ -236,7 +241,7 @@ int main(int argc, char* argv[])
 
             // solve linear system to get -deltax
             bool cg_converged = false;
-            ss_cg(deltax, b, 200, tolerance, cg_converged);
+            ss_cg(deltax, b, max_cg_iters, tolerance, cg_converged);
 
             // check that the CG solver converged
             if (!cg_converged) break;
@@ -253,7 +258,6 @@ int main(int argc, char* argv[])
         #endif
 
         // output some statistics
-        //if (converged && verbose_output)
         if (converged && verbose_output) {
             std::cout << "step " << timestep
                       << " required " << it
