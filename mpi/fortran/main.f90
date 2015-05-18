@@ -302,6 +302,10 @@ subroutine initialize_mpi(options, domain)
     integer     :: domx, domy
     integer     :: nx, ny, startx, starty, endx, endy
     integer     :: i
+    integer     :: dims(2)
+    integer     :: periods(2)
+    integer     :: coords(2)
+    integer     :: comm_cart
 
     call mpi_init(err)
     call mpi_comm_size(MPI_COMM_WORLD, mpi_size, ierr)
@@ -310,17 +314,27 @@ subroutine initialize_mpi(options, domain)
     ! compute the domain decomposition size
     ! ndomx and ndomy are the number of sub-domains in the x and y directions
     ! repsectively
-    ndomx = sqrt(real(mpi_size))
-    do while ( mod(mpi_size, ndomx) > 0 )
-        ndomx = ndomx-1
-    end do
-    ndomy = mpi_size / ndomx
+    dims(1) = 0
+    dims(2) = 0
+    call mpi_dims_create(mpi_size, 2, dims, ierr)
+    ndomy = dims(1)
+    ndomx = dims(2)
 
-    ! compute this sub-domain index
-    ! work backwards from: mpi_rank = (domx-1) + (domy-1)*ndomx
-    domx = mod(mpi_rank, ndomx) + 1
-    domy = (mpi_rank-domx+1)/ndomx + 1
+    ! create a 2D non-periodic cartesian topology
+    periods(1) = 0
+    periods(2) = 0
+    call mpi_cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, comm_cart, ierr)
 
+    ! retrieve coordinates of the rank in the topology
+    call mpi_cart_coords(comm_cart, mpi_rank, 2, coords, ierr)
+    domy = coords(1)+1
+    domx = coords(2)+1
+
+    ! set neighbours for all directions
+    call mpi_cart_shift(comm_cart, 0, 1, domain%neighbour_south, domain%neighbour_north, ierr)
+    call mpi_cart_shift(comm_cart, 1, 1, domain%neighbour_west, domain%neighbour_east, ierr)
+
+    ! get bounding box
     nx = options%global_nx / ndomx
     ny = options%global_ny / ndomy
     startx = (domx-1)*nx+1
@@ -346,25 +360,6 @@ subroutine initialize_mpi(options, domain)
     options%nx = nx
     options%ny = ny
     options%N  = nx*ny
-
-    ! detemine information about neighbours
-    domain%neighbour_east  = mpi_rank+1
-    domain%neighbour_west  = mpi_rank-1
-    domain%neighbour_north = mpi_rank+ndomx
-    domain%neighbour_south = mpi_rank-ndomx
-
-    if (domx .eq. 1) then
-        domain%neighbour_west = -1
-    endif
-    if (domx .eq. ndomx) then
-        domain%neighbour_east = -1
-    endif
-    if (domy .eq. 1) then
-        domain%neighbour_south = -1
-    endif
-    if (domy .eq. ndomy) then
-        domain%neighbour_north = -1
-    endif
 
     domain%rank = mpi_rank
     domain%size = mpi_size
