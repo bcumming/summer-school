@@ -73,7 +73,6 @@ void SubDomain::init(int mpi_rank, int mpi_size, Discretization& discretization)
 
     rank = mpi_rank;
     size = mpi_size;
-    // TODO: should we use comm_cart instead of MPI_COMM_WORLD for the communications?
 }
 
 // print domain decomposition information to stdout
