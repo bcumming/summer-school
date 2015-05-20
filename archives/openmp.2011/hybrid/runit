@@ -1,0 +1,35 @@
+#!/bin/bash
+
+source "../ENV"
+
+if [ $COMPILER = 'ftn' ]; then
+	export SUFFIX='f90'
+else
+	export SUFFIX='c'
+fi
+
+$COMPILER -openmp -o hybrid hybrid.$SUFFIX
+
+rm -f hyjob
+rm -f overlap.out
+
+cat >> hyjob << EOF
+#!/bin/bash
+#SBATCH --job-name="job"
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=24
+#SBATCH --time=00:05:00
+#SBATCH -o job.out
+
+export OMP_NUM_THREADS=24
+aprun -n 1 -N 1 -d 24  ./hybrid 
+rm -f overlap.out
+
+EOF
+
+sbatch hyjob
+
+echo 
+echo "When job finishes, output is in job.out"
+echo

@@ -1,0 +1,10 @@
+#!/bin/bash 
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=12
+#SBATCH --time=00:05:00
+#SBATCH -o job.out
+
+export OMP_NUM_THREADS=12
+aprun -n 1 -d 12 ./pi 
+

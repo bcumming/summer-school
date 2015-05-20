@@ -1,0 +1,14 @@
+
+The goal of this exercise is to introduce you to hybrid programming in a non-trival way.
+
+In the codes provided, you are given a nested loop that performs some work on an array
+followed by an I/O operation that writes another array to disk. 
+
+Goal: Using OpenMP, create a parallel region wherein one loop performs that file I/O operation
+and the remaining threads handle the nested loop. There are a  couple of ways of dealing with this.
+If you choose to use nested parallelism, switch to using the Intel programming environment as the 
+PGI C compiler doesn't seem to  handle this case well at the moment (or just use PGI and see for yourself!).
+
+There are two copies of the loop/IO code fragments. The first should be left alone (as indicated) so as to
+provide a convenient timing reference. Just optimize the second section. 
+

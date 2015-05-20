@@ -1,0 +1,38 @@
+#!/bin/bash 
+export nthrds=$1
+
+
+source "../ENV"
+
+if [ $COMPILER = 'ftn' ]; then
+	export SUFFIX='f90'
+else
+	export SUFFIX='c'
+fi
+	
+$COMPILER  -mp -o workshare workshare.$SUFFIX
+
+echo
+echo "Running pi with $nthrds threads"
+echo 
+
+
+rm -f workjob
+cat >> workjob << EOF
+#!/bin/bash 
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=$nthrds
+#SBATCH --time=00:05:00
+#SBATCH -o job.out
+
+export OMP_NUM_THREADS=$nthrds
+aprun -n 1 -d $nthrds ./workshare 
+
+EOF
+
+sbatch workjob
+
+echo 
+echo "Output is in job.out"
+echo

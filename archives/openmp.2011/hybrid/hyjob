@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH --job-name="job"
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=12
+#SBATCH --time=00:05:00
+#SBATCH -o job.out
+
+export OMP_NUM_THREADS=12
+aprun -n 1 -N 1 -d 12  ./hybrid 
+rm -f overlap.out
+
