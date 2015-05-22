@@ -41,7 +41,7 @@ void diffusion(const data::Field &U, data::Field &S)
     int jend  = ny - 1;
 
     MPI_Status statuses[8];
-    int requests[8];
+    MPI_Request requests[8];
     int num_requests = 0;
 
     if(domain.neighbour_north>=0) {
