@@ -5,11 +5,11 @@ This is a simple application that solves a simple reaction diffusion equation in
 The equation is Fisher's equation, a simple nonlinear reaction diffusion equation that is used to model simple population dynamics.
 
 ```
-  2      2                
- d u    d u               
+         2
+ du    d u
 ---- = D---  +  Ru(1 - u) 
-   2      2               
-d t     dx      
+          2
+ dt     dx
 ```
 
 Where the diffusion parameter _D_ and the growth rate _R_ have been hard coded in this case to give stable and interesting results.
