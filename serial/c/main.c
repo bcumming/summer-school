@@ -186,7 +186,6 @@ int main(int argc, char* argv[])
         iters_newton += it;
 
         // output some statistics
-        //if (converged && verbose_output)
         if (converged && verbose_output)
             printf("step %d required %d iterations for residual %E\n", timestep, it, residual);
         if (!converged)
