@@ -1,5 +1,5 @@
 //******************************************
-// operators.f90
+// operators.cpp
 // based on min-app code written by Oliver Fuhrer, MeteoSwiss
 // modified by Ben Cumming, CSCS
 // *****************************************
