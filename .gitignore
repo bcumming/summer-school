@@ -7,6 +7,8 @@
 # executables
 main
 main_mpi
+tests
+unit_tests
 
 # vis output
 *.bin
@@ -29,5 +31,5 @@ tmp
 visitlog.py
 .fuse*
 *.log
-job.out
+*.out
 log

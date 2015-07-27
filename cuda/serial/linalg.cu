@@ -6,8 +6,6 @@
 #include <cmath>
 #include <cstdio>
 
-#include <mpi.h>
-
 #include "linalg.h"
 #include "operators.h"
 #include "stats.h"
@@ -24,11 +22,9 @@ namespace kernels {
             int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] = value;
-            i += grid_step;
         }
     }
 
@@ -40,11 +36,9 @@ namespace kernels {
             int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] += alpha * x[i];
-            i += grid_step;
         }
     }
 
@@ -58,11 +52,9 @@ namespace kernels {
             const int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] = x[i] + alpha * (l[i] - r[i]);
-            i += grid_step;
         }
     }
 
@@ -75,11 +67,9 @@ namespace kernels {
             int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] = alpha * (l[i] - r[i]);
-            i += grid_step;
         }
     }
 
@@ -91,11 +81,9 @@ namespace kernels {
             int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] = alpha * x[i];
-            i += grid_step;
         }
     }
 
@@ -109,11 +97,9 @@ namespace kernels {
             int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] = alpha * x[i] + beta * z[i];
-            i += grid_step;
         }
     }
 
@@ -124,11 +110,9 @@ namespace kernels {
             int n)
     {
         auto i = threadIdx.x + blockDim.x*blockIdx.x;
-        auto const grid_step = blockDim.x * gridDim.x;
 
-        while(i < n) {
+        if(i < n) {
             y[i] = x[i];
-            i += grid_step;
         }
     }
 } // namespace kernels
@@ -144,11 +128,9 @@ Field xold;
 
 // block dimensions for blas 1 calls
 const int block_dim = 192;
-const int max_blocks_per_grid = 128;
 
 int calculate_grid_dim(const int block_dim, int n) {
-    int num_blocks = n/block_dim + (n%block_dim ? 1 : 0);
-    return num_blocks < max_blocks_per_grid ? num_blocks : max_blocks_per_grid;
+    return (n + block_dim -1) / block_dim;
 }
 
 using namespace operators;

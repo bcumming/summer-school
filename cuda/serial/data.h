@@ -114,7 +114,7 @@ class Field {
     // helpers for coordinating host-device transfers
     /////////////////////////////////////////////////
     void update_host() {
-        cuda_api_call(
+        cuda_check_status(
             cudaMemcpy(
                 host_ptr_,
                 device_ptr_,
@@ -125,7 +125,7 @@ class Field {
     }
 
     void update_device() {
-        cuda_api_call(
+        cuda_check_status(
             cudaMemcpy(
                 device_ptr_,
                 host_ptr_,
@@ -181,12 +181,6 @@ extern Field bndN; // 1d
 extern Field bndE; // 1d
 extern Field bndS; // 1d
 extern Field bndW; // 1d
-
-// buffers used in boundary exchange
-extern Field buffN;
-extern Field buffE;
-extern Field buffS;
-extern Field buffW;
 
 extern Discretization options;
 

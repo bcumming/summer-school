@@ -14,7 +14,7 @@ static inline void cuda_check_last_kernel(std::string const& errstr) {
     }
 }
 
-static inline void cuda_api_call(cudaError_t error_code) {
+static inline void cuda_check_status(cudaError_t error_code) {
     if(error_code != cudaSuccess) {
         std::cerr << "error: CUDA API call : "
                   << cudaGetErrorString(error_code) << std::endl;

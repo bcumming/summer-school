@@ -8,8 +8,6 @@
 
 // Description: Contains simple operators which can be used on 3d-meshes
 
-#include <mpi.h>
-
 #include "cuda_helpers.h"
 #include "data.h"
 #include "operators.h"
@@ -52,7 +50,7 @@ void setup_params_on_device(
         data::bndW.device_data()
     };
 
-    cuda_api_call(
+    cuda_check_status(
         cudaMemcpyToSymbol(params, &p, sizeof(DiffusionParams))
     );
 }
@@ -196,11 +194,6 @@ void diffusion(data::Field const& U, data::Field &S)
     using data::bndW;
     using data::bndN;
     using data::bndS;
-
-    using data::buffE;
-    using data::buffW;
-    using data::buffN;
-    using data::buffS;
 
     using data::x_old;
 
