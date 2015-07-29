@@ -34,7 +34,7 @@ main: $(OBJ) main.o
 
 unit_tests: data.o linalg.o unit_tests.o
 	$(CC) $(CXXFLAGS) unit_tests.o $(OBJ) -o unit_tests -lcublas
-	aprun ./tests
+	aprun ./unit_tests
 
 clean:
 	rm -f main

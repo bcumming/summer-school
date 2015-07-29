@@ -57,6 +57,60 @@ void setup_params_on_device(
 
 namespace kernels {
     __global__
+    void stencil_shared(double* S, const double *U) {
+        double extern __shared__ buffer[];
+
+        auto nx = params.nx;
+        auto ny = params.ny;
+        auto bx = blockDim.x+2;
+        auto by = blockDim.y+2;
+
+        auto gi = threadIdx.x + blockDim.x*blockIdx.x;
+        auto gj = threadIdx.y + blockDim.y*blockIdx.y;
+        auto li = threadIdx.x + 1;
+        auto lj = threadIdx.y + 1;
+        auto gpos = gi + gj * nx;
+        auto lpos = li + lj * bx;
+
+        if(gi<nx && gj<ny) {
+            // load the shared memory
+            if(li==1) {     //  west boundary
+                if(gi==0)
+                    buffer[lpos-1] = params.bndW[gj];
+                else
+                    buffer[lpos-1] = U[gpos-1];
+            }
+            if(li==bx-2) {  //  east boundary
+                if(gi==nx-1)
+                    buffer[lpos+1] = params.bndE[gj];
+                else
+                    buffer[lpos+1] = U[gpos+1];
+            }
+            if(lj==1) {     //  south boundary
+                if(gj==0)
+                    buffer[lpos-bx] = params.bndS[gi];
+                else
+                    buffer[lpos-bx] = U[gpos-nx];
+            }
+            if(lj==by-2) {  //  south boundary
+                if(gj==ny-1)
+                    buffer[lpos+bx] = params.bndN[gi];
+                else
+                    buffer[lpos+bx] = U[gpos+nx];
+            }
+            buffer[lpos] = U[gpos];
+
+            __syncthreads();
+
+            S[gpos] = -(4. + params.alpha) * buffer[lpos]               // central point
+                                   + buffer[lpos-1]  + buffer[lpos+1]   // east and west
+                                   + buffer[lpos-bx] + buffer[lpos+bx]  // north and south
+                                   + params.alpha * params.x_old[gpos]
+                                   + params.dxs * buffer[lpos] * (1.0 - buffer[lpos]);
+        }
+    }
+
+    __global__
     void stencil_interior(double* S, const double *U) {
         auto nx = params.nx;
         auto ny = params.ny;
@@ -197,7 +251,6 @@ void diffusion(data::Field const& U, data::Field &S)
 
     using data::x_old;
 
-
     double dxs = 1000. * (options.dx * options.dx);
     double alpha = options.alpha;
     int nx = options.nx;
@@ -219,32 +272,27 @@ void diffusion(data::Field const& U, data::Field &S)
     auto calculate_grid_dim = [] (size_t n, size_t block_dim) {
         return n/block_dim + (n%block_dim ? 1 : 0);
     };
-    dim3 block_dim(16, 16); // use 8x8 thread block dimensions
+    dim3 block_dim(8, 8); // use 8x8 thread block dimensions
     dim3 grid_dim(
         calculate_grid_dim(nx, block_dim.x),
         calculate_grid_dim(ny, block_dim.y)
     );
 
+#define STENCIL_SHARED
+#ifdef STENCIL_SHARED
+    kernels::stencil_shared<<<grid_dim, block_dim, 18*18*sizeof(double)>>>(S.device_data(), U.device_data());
+#else
     kernels::stencil_interior<<<grid_dim, block_dim>>>(S.device_data(), U.device_data());
-    cuda_check_last_kernel("interior point stencil kernel launch");
 
     // apply stencil at boundaries
     auto bnd_grid_dim_y = calculate_grid_dim(ny, 64);
     kernels::stencil_east_west<<<bnd_grid_dim_y, 64>>>(S.device_data(), U.device_data());
-    cuda_check_last_kernel("east-west stencil kernel");
 
     auto bnd_grid_dim_x = calculate_grid_dim(nx, 64);
-    //std::cout << "[[ " << 64 << ", " << bnd_grid_dim_x << "]]" << std::endl;
     kernels::stencil_north_south<<<bnd_grid_dim_x, 64>>>(S.device_data(), U.device_data());
-    cuda_check_last_kernel("north-south stencil kernel");
 
     kernels::stencil_corners<<<1, 1>>>(S.device_data(), U.device_data());
-    cuda_check_last_kernel("corner stencil kernel");
-
-    stats::flops_diff +=
-        + 12 * (nx - 2) * (ny - 2) // interior points
-        + 11 * (nx - 2  +  ny - 2) // NESW boundary points
-        + 11 * 4;                  // corner points
+#endif
 }
 
 } // namespace operators
