@@ -1,0 +1,3 @@
+#!/bin/bash
+export COMPILER=cc
+#export COMPILER=ftn

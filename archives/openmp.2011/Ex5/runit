@@ -1,0 +1,38 @@
+#!/bin/bash 
+export nthrds=$1
+
+
+source "../ENV"
+
+if [ $COMPILER = 'ftn' ]; then
+	export SUFFIX='f90'
+else
+	export SUFFIX='c'
+fi
+	
+$COMPILER  -o fib fib.$SUFFIX
+
+echo
+echo "Running fib with $nthrds threads"
+echo 
+
+
+rm -f fibjob
+cat >> fibjob << EOF
+#!/bin/bash 
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=$nthrds
+#SBATCH --time=00:05:00
+#SBATCH -o job.out
+
+export OMP_NUM_THREADS=$nthrds
+aprun -n 1 -d $nthrds ./fib 
+
+EOF
+
+sbatch fibjob
+
+echo 
+echo "Output is in job.out"
+echo

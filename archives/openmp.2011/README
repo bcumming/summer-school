@@ -1,0 +1,105 @@
+
+Each exercise contains a program (described below) requiring you to insert OpenMP directives into the
+code and then noting how performance changes as the thread count changes. These are not complex examples. They
+are just meant to get you used to using the OpenMP syntax.
+
+Before you begin, edit the ENV file to choose whether or not you wish to do with exercises with C or with Fortran.
+All you need to do is uncomment the compiler option that you wish to use, e.g to use the C version of each exercise
+your ENV file will look like this:
+
+#!/bin/bash
+export COMPILER=cc
+#export COMPILER=ftn
+
+The ENV file exists to make the use of our build and run scripts easy and simple.
+
+Building, compiling and running each example is trivial. Make your changes and then type
+
+./runit N
+
+where N is the number of threads that you wish to use. The script will compile your code, create a batch script,
+and launch the job. 
+
+Exercises:
+===========
+===========
+
+Ex1:
+=====
+
+This routine calculates the value of pi by integrating a function in a do/for loop. 
+Your tasks are to
+a) Insert directives to parallelize the do/for loop.
+b) Insert directives to use a reduction on the loop in order to capture the value of the integral.
+c) Pay attention to any private variables needed.
+d) Run the code for a few different thread counts (e.g. 1,2,4,8,etc).
+
+Ex2:
+=====
+
+Thix exercise introduces some more worksharing constructs
+The Fortran and C versions of this exercise are slightly different:
+
+Fortran:
+Your tasks are to
+a) Parallelize the initializations using the OpenMP workshare directive
+b) Parallelize the function calls using the sections directive
+d) Run the code for a few different thread counts (e.g. 1,2,4,8,etc).
+
+C:
+Your tasks are to
+a) Parallelize the initializations using the OpenMP sections directive (or, just parallelize them)
+b) Parallelize the function calls using the sections directive
+d) Run the code for a few different thread counts (e.g. 1,2,4,8,etc).
+
+Ex3:
+=====
+
+This exercise requires you to parallelize a matrix-matrix multiply. It also introduces the use
+of a couple of the most commonly used run time library functions: omp_get_thread_num and omp_get_num_threads.
+Your tasks are to:
+a) Parallelize a region, making sure each thread gets its own thread number. Examine the code first to look over which
+the scope of the thread number should be valid.
+b) parallelize the initializations (using sections or parallel for loops).
+c) For the first print statement, just use a single thread to do the print.
+d) Parallelize the matrix-matrix multiply using a do/for directive.
+d) Run the code for a few different thread counts (e.g. 1,2,4,8,etc).
+
+
+Ex4:
+=====
+
+This exercise requires you to parallelize two different nested loops containing arrays with different dimensions
+but nearly the same total amount of work. 
+Your tasks are to:
+a) Parallelize each nested loop
+b) Run the code for a few different thread counts (e.g. 1,2,4,8,etc).
+c) Note the difference in scaling between the loops.
+d) Insert a collapse directive with a depth of 2 (i.e. collapse(2)) in each OpenMP do/for construct.
+e) Run the code for a few different thread counts (e.g. 1,2,4,8,etc).
+f) Note the difference in scaling between the loops. You should see hardly any change in the first loop and a big improvement
+in the second loop.
+
+
+Ex5:
+=====
+
+Before you start this exercise, do this:
+
+module swap PrgEnv-pgi PrgEnv-cray
+
+if you are using the PGI compiler. We just need to do this since PGI doesn't support tasking at the moment.
+
+This exercise introduces the concept of tasking. The code itself calculates the value of the Fibonacci function for n=41.
+This version of the algorithm uses recursive calls, making parallelization a bit trickier. This isn't necessarily the way
+that you'd do this in reality....
+Your tasks are to:
+a) Parallize the initial call to fib() in the main routine. Think about how many threads you want calling fib() initially.
+Just because you create a team of threads, it doesn't mean you need to use them all and, with tasks, the others won't sitting
+around doing nothing if they are required to do work later.
+b) Add some tasks directives to the fib() function so that each call to fib() is it's own task.
+c) Think about the attributes of n1 and n2. Shared, or private?
+d) Do you need a barrier? What kind of barrier?
+
+
+
